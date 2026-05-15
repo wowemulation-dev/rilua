@@ -651,7 +651,7 @@ impl LuaState {
     /// Returns the value at the given 1-based argument index, or `Val::Nil`
     /// if the slot is unset.
     #[inline]
-    fn arg_at(&self, n: usize) -> Val {
+    pub fn arg_at(&self, n: usize) -> Val {
         debug_assert!(n >= 1, "argument indices are 1-based");
         let idx = self.base + n - 1;
         if idx < self.top {
