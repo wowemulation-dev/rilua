@@ -1124,23 +1124,21 @@ impl Compiler {
     pub(crate) fn exp2rk(&mut self, e: &mut ExprContext, line: u32) -> LuaResult<u32> {
         self.exp2val(e, line);
         match e.kind {
-            ExprKind::True | ExprKind::False | ExprKind::Nil => {
+            ExprKind::True | ExprKind::False | ExprKind::Nil
+                if self.fs().proto.constants.len() <= MAXINDEXRK as usize =>
+            {
                 // Small enough to encode: use constant
-                if self.fs().proto.constants.len() <= MAXINDEXRK as usize {
-                    let k = match e.kind {
-                        ExprKind::Nil => self.nil_constant()?,
-                        ExprKind::True => self.add_constant(Val::Bool(true))?,
-                        _ => self.add_constant(Val::Bool(false))?, // False
-                    };
-                    e.info = k as i32;
-                    e.kind = ExprKind::K;
-                    return Ok(k | BITRK);
-                }
+                let k = match e.kind {
+                    ExprKind::Nil => self.nil_constant()?,
+                    ExprKind::True => self.add_constant(Val::Bool(true))?,
+                    _ => self.add_constant(Val::Bool(false))?, // False
+                };
+                e.info = k as i32;
+                e.kind = ExprKind::K;
+                return Ok(k | BITRK);
             }
-            ExprKind::K => {
-                if (e.info as u32) <= MAXINDEXRK {
-                    return Ok(e.info as u32 | BITRK);
-                }
+            ExprKind::K if (e.info as u32) <= MAXINDEXRK => {
+                return Ok(e.info as u32 | BITRK);
             }
             ExprKind::KNum => {
                 let k = self.number_constant(e.nval)?;

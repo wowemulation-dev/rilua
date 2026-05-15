@@ -51,25 +51,6 @@ fn simple_error(msg: String) -> LuaError {
     })
 }
 
-fn check_number(state: &LuaState, name: &str, n: usize) -> LuaResult<f64> {
-    match arg(state, n) {
-        Val::Num(v) => Ok(v),
-        Val::Str(r) => {
-            let s = state
-                .gc
-                .string_arena
-                .get(r)
-                .map(|s| s.data().to_vec())
-                .ok_or_else(|| bad_argument(name, n + 1, "number expected"))?;
-            let text = String::from_utf8_lossy(&s);
-            text.trim()
-                .parse::<f64>()
-                .map_err(|_| bad_argument(name, n + 1, "number expected"))
-        }
-        _ => Err(bad_argument(name, n + 1, "number expected")),
-    }
-}
-
 /// Returns the thread-offset: 1 if arg(0) is a Thread, else 0.
 fn get_thread_offset(state: &LuaState) -> usize {
     usize::from(nargs(state) >= 1 && matches!(arg(state, 0), Val::Thread(_)))
@@ -229,11 +210,7 @@ fn generate_traceback_raw(
 
     let mut level = start_level;
     let mut first_part = true;
-    loop {
-        let Some(stack_level) = resolve(level) else {
-            break;
-        };
-
+    while let Some(stack_level) = resolve(level) {
         if level > LEVELS1 && first_part {
             if resolve(level + LEVELS2).is_some() {
                 result.push_str("\n\t...");
@@ -900,8 +877,8 @@ fn set_table_val(
 pub fn db_getlocal(state: &mut LuaState) -> LuaResult<u32> {
     let arg_offset = get_thread_offset(state);
 
-    let level = check_number(state, "getlocal", arg_offset)? as usize;
-    let local_idx = check_number(state, "getlocal", arg_offset + 1)? as usize;
+    let level = state.check_number(arg_offset + 1)? as usize;
+    let local_idx = state.check_number(arg_offset + 2)? as usize;
 
     // Determine which thread to inspect.
     let co_ref = if arg_offset == 1 {
@@ -1029,8 +1006,8 @@ pub fn db_getlocal(state: &mut LuaState) -> LuaResult<u32> {
 pub fn db_setlocal(state: &mut LuaState) -> LuaResult<u32> {
     let arg_offset = get_thread_offset(state);
 
-    let level = check_number(state, "setlocal", arg_offset)? as usize;
-    let local_idx = check_number(state, "setlocal", arg_offset + 1)? as usize;
+    let level = state.check_number(arg_offset + 1)? as usize;
+    let local_idx = state.check_number(arg_offset + 2)? as usize;
     let new_val = arg(state, arg_offset + 2);
 
     // Determine which thread to inspect.
@@ -1156,7 +1133,7 @@ pub fn db_getupvalue(state: &mut LuaState) -> LuaResult<u32> {
     let Val::Function(cl_ref) = arg(state, 0) else {
         return Err(bad_argument("getupvalue", 1, "function expected"));
     };
-    let n = check_number(state, "getupvalue", 1)? as usize;
+    let n = state.check_number(2)? as usize;
 
     let cl = state
         .gc
@@ -1199,7 +1176,7 @@ pub fn db_setupvalue(state: &mut LuaState) -> LuaResult<u32> {
     let Val::Function(cl_ref) = arg(state, 0) else {
         return Err(bad_argument("setupvalue", 1, "function expected"));
     };
-    let n = check_number(state, "setupvalue", 1)? as usize;
+    let n = state.check_number(2)? as usize;
     let new_val = arg(state, 2);
 
     let is_lua = state.gc.closures.get(cl_ref).is_some_and(Closure::is_lua);

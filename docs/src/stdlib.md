@@ -453,15 +453,21 @@ for a working example.
 ## Loading
 
 Libraries are loaded via `Lua::new()` (all standard libraries) or
-selectively:
+selectively via `Lua::new_with(StdLib)`.
+
+Mirrored at [`examples/selective_stdlib.rs`](../../examples/selective_stdlib.rs).
 
 ```rust
-let mut lua = Lua::new_empty();
-lua.open_base()?;
-lua.open_string()?;
-lua.open_table()?;
-lua.open_math()?;
-// io, os, debug, package omitted (sandboxed)
+use rilua::{Lua, StdLib};
+
+fn main() -> rilua::LuaResult<()> {
+    let mut lua = Lua::new_with(
+        StdLib::BASE | StdLib::STRING | StdLib::TABLE | StdLib::MATH,
+    )?;
+    // io, os, debug, package omitted (sandboxed)
+    lua.exec(r#"print(string.upper("ok"))"#)?;
+    Ok(())
+}
 ```
 
 ## Error Message Formats

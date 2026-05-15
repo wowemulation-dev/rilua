@@ -3,7 +3,6 @@
 //! Reference: `loslib.c` in PUC-Rio Lua 5.1.1.
 
 use crate::error::{LuaError, LuaResult, RuntimeError};
-use crate::vm::execute::coerce_to_number;
 use crate::vm::gc::arena::GcRef;
 use crate::vm::state::LuaState;
 use crate::vm::table::Table;
@@ -33,55 +32,12 @@ fn arg(state: &LuaState, n: usize) -> Val {
     }
 }
 
-fn bad_argument(name: &str, n: usize, msg: &str) -> LuaError {
-    LuaError::Runtime(RuntimeError {
-        message: format!("bad argument #{n} to '{name}' ({msg})"),
-        level: 0,
-        traceback: vec![],
-    })
-}
-
 fn runtime_error(msg: String) -> LuaError {
     LuaError::Runtime(RuntimeError {
         message: msg,
         level: 0,
         traceback: vec![],
     })
-}
-
-/// Extracts a number argument, coercing strings like `luaL_checknumber`.
-fn check_number(state: &LuaState, name: &str, n: usize) -> LuaResult<f64> {
-    let val = arg(state, n);
-    match val {
-        Val::Num(v) => Ok(v),
-        Val::Str(_) => coerce_to_number(val, &state.gc)
-            .ok_or_else(|| bad_argument(name, n + 1, "number expected")),
-        _ => Err(bad_argument(name, n + 1, "number expected")),
-    }
-}
-
-/// Extracts a string argument as bytes.
-fn check_string(state: &LuaState, name: &str, n: usize) -> LuaResult<Vec<u8>> {
-    let val = arg(state, n);
-    match val {
-        Val::Str(r) => state
-            .gc
-            .string_arena
-            .get(r)
-            .map(|s| s.data().to_vec())
-            .ok_or_else(|| bad_argument(name, n + 1, "string expected")),
-        Val::Num(_) => Ok(format!("{val}").into_bytes()),
-        _ => Err(bad_argument(name, n + 1, "string expected")),
-    }
-}
-
-/// Extracts an optional string argument. Returns `None` for nil/absent.
-fn opt_string(state: &LuaState, name: &str, n: usize) -> LuaResult<Option<Vec<u8>>> {
-    if nargs(state) <= n || matches!(arg(state, n), Val::Nil) {
-        Ok(None)
-    } else {
-        check_string(state, name, n).map(Some)
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -201,7 +157,7 @@ pub fn os_time(state: &mut LuaState) -> LuaResult<u32> {
 
     // Table argument: extract fields.
     let Val::Table(table_ref) = arg(state, 0) else {
-        return Err(bad_argument("time", 1, "table expected"));
+        return Err(state.type_error(1, "table"));
     };
 
     let sec = get_date_field(state, table_ref, "sec", Some(0))?;
@@ -245,7 +201,7 @@ pub fn os_time(state: &mut LuaState) -> LuaResult<u32> {
 pub fn os_date(state: &mut LuaState) -> LuaResult<u32> {
     // Get format string (default "%c").
     let format_bytes = if nargs(state) > 0 && !matches!(arg(state, 0), Val::Nil) {
-        check_string(state, "date", 0)?
+        state.check_string(1)?
     } else {
         b"%c".to_vec()
     };
@@ -254,7 +210,7 @@ pub fn os_date(state: &mut LuaState) -> LuaResult<u32> {
     // Get time argument (default: current time).
     let t: TimeT = if nargs(state) > 1 && !matches!(arg(state, 1), Val::Nil) {
         #[allow(clippy::cast_possible_truncation)]
-        let v = check_number(state, "date", 1)? as TimeT;
+        let v = state.check_number(2)? as TimeT;
         v
     } else {
         current_time()
@@ -357,9 +313,9 @@ fn os_date_table(state: &mut LuaState, tm: &Tm) -> LuaResult<u32> {
 /// PUC-Rio uses C's `difftime()`, which for all practical purposes is
 /// just a subtraction on POSIX (time_t is arithmetic).
 pub fn os_difftime(state: &mut LuaState) -> LuaResult<u32> {
-    let t1 = check_number(state, "difftime", 0)?;
+    let t1 = state.check_number(1)?;
     let t2 = if nargs(state) > 1 && !matches!(arg(state, 1), Val::Nil) {
-        check_number(state, "difftime", 1)?
+        state.check_number(2)?
     } else {
         0.0
     };
@@ -382,7 +338,7 @@ pub fn os_execute(state: &mut LuaState) -> LuaResult<u32> {
         return Ok(1);
     }
 
-    let cmd = check_string(state, "execute", 0)?;
+    let cmd = state.check_string(1)?;
     let cmd_str = String::from_utf8_lossy(&cmd);
 
     #[cfg(not(target_os = "windows"))]
@@ -423,7 +379,7 @@ pub fn os_execute(state: &mut LuaState) -> LuaResult<u32> {
 pub fn os_exit(state: &mut LuaState) -> LuaResult<u32> {
     #[allow(clippy::cast_possible_truncation)]
     let code = if nargs(state) > 0 && !matches!(arg(state, 0), Val::Nil) {
-        check_number(state, "exit", 0)? as i32
+        state.check_number(1)? as i32
     } else {
         0
     };
@@ -438,7 +394,7 @@ pub fn os_exit(state: &mut LuaState) -> LuaResult<u32> {
 ///
 /// Returns nil if the variable is not defined.
 pub fn os_getenv(state: &mut LuaState) -> LuaResult<u32> {
-    let name = check_string(state, "getenv", 0)?;
+    let name = state.check_string(1)?;
     let name_str = String::from_utf8_lossy(&name);
 
     match std::env::var(name_str.as_ref()) {
@@ -461,7 +417,7 @@ pub fn os_getenv(state: &mut LuaState) -> LuaResult<u32> {
 ///
 /// Returns `true` on success, or `nil, message, errno` on failure.
 pub fn os_remove(state: &mut LuaState) -> LuaResult<u32> {
-    let name = check_string(state, "remove", 0)?;
+    let name = state.check_string(1)?;
     let name_str = String::from_utf8_lossy(&name).into_owned();
 
     match std::fs::remove_file(&name_str) {
@@ -479,8 +435,8 @@ pub fn os_remove(state: &mut LuaState) -> LuaResult<u32> {
 /// Returns `true` on success, or `nil, message, errno` on failure.
 /// Error message uses the source filename (matches PUC-Rio).
 pub fn os_rename(state: &mut LuaState) -> LuaResult<u32> {
-    let oldname = check_string(state, "rename", 0)?;
-    let newname = check_string(state, "rename", 1)?;
+    let oldname = state.check_string(1)?;
+    let newname = state.check_string(2)?;
     let old_str = String::from_utf8_lossy(&oldname).into_owned();
     let new_str = String::from_utf8_lossy(&newname).into_owned();
 
@@ -517,11 +473,11 @@ pub fn os_tmpname(state: &mut LuaState) -> LuaResult<u32> {
 #[allow(unsafe_code)]
 pub fn os_setlocale(state: &mut LuaState) -> LuaResult<u32> {
     // Locale argument: nil means query only (NULL in C).
-    let locale_arg = opt_string(state, "setlocale", 0)?;
+    let locale_arg = state.opt_string(1)?;
 
     // Category argument: default "all".
     let cat_name = if nargs(state) > 1 && !matches!(arg(state, 1), Val::Nil) {
-        check_string(state, "setlocale", 1)?
+        state.check_string(2)?
     } else {
         b"all".to_vec()
     };
@@ -534,7 +490,7 @@ pub fn os_setlocale(state: &mut LuaState) -> LuaResult<u32> {
         b"numeric" => platform::locale::LC_NUMERIC,
         b"time" => platform::locale::LC_TIME,
         _ => {
-            return Err(bad_argument("setlocale", 2, "invalid option"));
+            return Err(state.arg_error(2, "invalid option"));
         }
     };
 

@@ -642,6 +642,137 @@ impl LuaState {
         }
     }
 
+    // ----- Argument checking helpers (PUC-Rio `luaL_check*` family) -----
+    //
+    // These methods take 1-based argument indices, matching the Lua C API
+    // and `luaL_checknumber`/`luaL_checkstring`. They resolve the calling
+    // function's name from debug info for error messages.
+
+    /// Returns the value at the given 1-based argument index, or `Val::Nil`
+    /// if the slot is unset.
+    #[inline]
+    fn arg_at(&self, n: usize) -> Val {
+        debug_assert!(n >= 1, "argument indices are 1-based");
+        let idx = self.base + n - 1;
+        if idx < self.top {
+            self.stack_get(idx)
+        } else {
+            Val::Nil
+        }
+    }
+
+    /// Builds a `bad argument #N to 'name' (msg)` runtime error, resolving
+    /// the function name from the current call frame.
+    ///
+    /// Matches PUC-Rio's `luaL_argerror` from `lauxlib.c`. `narg` is 1-based.
+    pub fn arg_error(&self, narg: usize, msg: &str) -> crate::error::LuaError {
+        let name_info =
+            super::debug_info::getfuncname(self, self.ci, &self.gc.string_arena);
+        let message = match name_info {
+            Some(("method", ref name)) => {
+                let adjusted = narg.saturating_sub(1);
+                if adjusted == 0 {
+                    format!("calling '{name}' on bad self ({msg})")
+                } else {
+                    format!("bad argument #{adjusted} to '{name}' ({msg})")
+                }
+            }
+            Some((_, ref name)) => format!("bad argument #{narg} to '{name}' ({msg})"),
+            None => format!("bad argument #{narg} to '?' ({msg})"),
+        };
+        crate::error::LuaError::Runtime(crate::error::RuntimeError {
+            message,
+            level: 0,
+            traceback: vec![],
+        })
+    }
+
+    /// Builds a type-mismatch error for argument `narg` (1-based), formatted
+    /// as `bad argument #N to 'name' (TYPE expected, got ACTUAL)`. Reports
+    /// `no value` when the slot is absent.
+    ///
+    /// Matches PUC-Rio's `luaL_typerror` from `lauxlib.c`.
+    pub fn type_error(&self, narg: usize, expected: &str) -> crate::error::LuaError {
+        let actual = if self.base + narg - 1 < self.top {
+            self.stack_get(self.base + narg - 1).type_name()
+        } else {
+            "no value"
+        };
+        self.arg_error(narg, &format!("{expected} expected, got {actual}"))
+    }
+
+    /// Checks that argument `n` (1-based) is a number, coercing strings
+    /// per Lua 5.1 rules. Returns the value as `f64`.
+    ///
+    /// Matches PUC-Rio's `luaL_checknumber`.
+    pub fn check_number(&self, n: usize) -> LuaResult<f64> {
+        let val = self.arg_at(n);
+        match val {
+            Val::Num(v) => Ok(v),
+            Val::Str(_) => super::execute::coerce_to_number(val, &self.gc)
+                .ok_or_else(|| self.type_error(n, "number")),
+            _ => Err(self.type_error(n, "number")),
+        }
+    }
+
+    /// Checks that argument `n` (1-based) is an integer-valued number,
+    /// truncating any fractional part. Returns the value as `i64`.
+    ///
+    /// Matches PUC-Rio's `luaL_checkinteger`.
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn check_integer(&self, n: usize) -> LuaResult<i64> {
+        Ok(self.check_number(n)? as i64)
+    }
+
+    /// Returns the optional integer value at argument `n` (1-based).
+    /// Returns `default` when the slot is nil or absent.
+    ///
+    /// Matches PUC-Rio's `luaL_optinteger`.
+    pub fn opt_integer(&self, n: usize, default: i64) -> LuaResult<i64> {
+        let idx = self.base + n - 1;
+        if idx >= self.top || matches!(self.arg_at(n), Val::Nil) {
+            return Ok(default);
+        }
+        self.check_integer(n)
+    }
+
+    /// Checks that argument `n` (1-based) is a string (or number, which is
+    /// coerced to its string form). Returns the bytes as a `Vec<u8>`.
+    ///
+    /// Matches PUC-Rio's `luaL_checkstring`. The returned vector is a copy
+    /// to keep the borrow on `self` short-lived.
+    pub fn check_string(&self, n: usize) -> LuaResult<Vec<u8>> {
+        let val = self.arg_at(n);
+        match val {
+            Val::Str(r) => self
+                .gc
+                .string_arena
+                .get(r)
+                .map(|s| s.data().to_vec())
+                .ok_or_else(|| self.type_error(n, "string")),
+            Val::Num(_) => Ok(format!("{val}").into_bytes()),
+            _ => Err(self.type_error(n, "string")),
+        }
+    }
+
+    /// Returns the optional string value at argument `n` (1-based).
+    /// Returns `None` when the slot is nil or absent.
+    ///
+    /// Matches PUC-Rio's `luaL_optstring` (without a default).
+    pub fn opt_string(&self, n: usize) -> LuaResult<Option<Vec<u8>>> {
+        let idx = self.base + n - 1;
+        if idx >= self.top || matches!(self.arg_at(n), Val::Nil) {
+            return Ok(None);
+        }
+        self.check_string(n).map(Some)
+    }
+
+    /// Pushes a numeric value, equivalent to `push(Val::Num(n))`.
+    #[inline]
+    pub fn push_number(&mut self, n: f64) {
+        self.push(Val::Num(n));
+    }
+
     /// Metamethod-aware table index: `t[key]` with `__index` chain.
     ///
     /// Equivalent to PUC-Rio's `lua_gettable`. Follows `__index` metamethods

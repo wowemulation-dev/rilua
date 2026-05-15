@@ -18,7 +18,7 @@ See [future-api.md](future-api.md) for planned ergonomic improvements.
 
 ## Core Type: Lua
 
-```rust
+```text
 /// A Lua interpreter instance.
 ///
 /// Owns the full VM state including value stack, call stack, GC heap,
@@ -170,7 +170,7 @@ impl Lua {
 
 ## Selective Library Loading
 
-```rust
+```text
 bitflags! {
     pub struct StdLib: u16 {
         const BASE      = 0x0001;
@@ -195,7 +195,7 @@ libraries (IO, OS, debug).
 
 ### IntoLua / FromLua
 
-```rust
+```text
 /// Convert a Rust value into a Lua value.
 pub trait IntoLua {
     fn into_lua(self, lua: &mut Lua) -> LuaResult<Val>;
@@ -229,7 +229,7 @@ Implemented for:
 
 For functions with multiple arguments or return values:
 
-```rust
+```text
 pub trait IntoLuaMulti {
     fn into_lua_multi(self, lua: &mut Lua) -> LuaResult<Vec<Val>>;
 }
@@ -245,7 +245,7 @@ Implemented for `Vec<Val>` (variable-length) and `()` (zero values).
 
 ### Table
 
-```rust
+```text
 pub struct Table(/* GcRef<table::Table> */);
 
 impl Table {
@@ -280,7 +280,7 @@ are `pub(crate)`) to get the state reference, or use
 
 ### Function
 
-```rust
+```text
 pub struct Function(/* GcRef<Closure> */);
 
 impl Function {
@@ -293,7 +293,7 @@ Call a Function via `Lua::call_function()` or `Lua::call_function_traced()`.
 
 ### Thread
 
-```rust
+```text
 pub struct Thread(/* GcRef<LuaThread> */);
 
 impl Thread {
@@ -315,7 +315,7 @@ pub enum ThreadStatus {
 
 ### AnyUserData
 
-```rust
+```text
 pub struct AnyUserData(/* GcRef<Userdata> */);
 
 impl AnyUserData {
@@ -345,8 +345,10 @@ impl AnyUserData {
 
 ## Embedding Example
 
+Mirrored at [`examples/embedding.rs`](../../examples/embedding.rs).
+
 ```rust
-use rilua::{Lua, StdLib, Val};
+use rilua::{Lua, LuaApiMut, StdLib, Val};
 
 fn main() -> rilua::LuaResult<()> {
     let mut lua = Lua::new_with(StdLib::ALL)?;
@@ -382,10 +384,12 @@ fn main() -> rilua::LuaResult<()> {
 Native functions use the low-level stack-based API via `LuaState`.
 This is the same API used by the standard library implementation.
 
+Mirrored at [`examples/native_function.rs`](../../examples/native_function.rs).
+
 ```rust
-use rilua::{Lua, RustFn};
 use rilua::vm::state::LuaState;
 use rilua::LuaResult;
+use rilua::{Lua, LuaApiMut, RustFn};
 
 /// A native function that adds two numbers.
 /// Arguments are on the stack at indices base..top.
@@ -399,7 +403,8 @@ fn my_add(state: &mut LuaState) -> LuaResult<u32> {
 
 fn main() -> rilua::LuaResult<()> {
     let mut lua = Lua::new()?;
-    lua.register_function("my_add", my_add)?;
+    let f: RustFn = my_add;
+    lua.register_function("my_add", f)?;
     lua.exec("print(my_add(10, 20))")?; // prints 30
     Ok(())
 }

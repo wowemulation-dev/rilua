@@ -33,69 +33,6 @@ fn bad_argument(name: &str, n: usize, msg: &str) -> LuaError {
     })
 }
 
-fn check_args(name: &str, state: &LuaState, min: usize) -> LuaResult<()> {
-    if nargs(state) < min {
-        Err(bad_argument(name, min, "value expected"))
-    } else {
-        Ok(())
-    }
-}
-
-/// Extracts a string argument as bytes. Returns the byte slice data as a Vec.
-fn check_string(state: &LuaState, name: &str, n: usize) -> LuaResult<Vec<u8>> {
-    let val = arg(state, n);
-    match val {
-        Val::Str(r) => state
-            .gc
-            .string_arena
-            .get(r)
-            .map(|s| s.data().to_vec())
-            .ok_or_else(|| bad_argument(name, n + 1, "string expected")),
-        Val::Num(_) => {
-            // Lua coerces numbers to strings for string functions.
-            Ok(format!("{val}").into_bytes())
-        }
-        _ => Err(bad_argument(name, n + 1, "string expected")),
-    }
-}
-
-/// Extracts a numeric argument, coercing strings to numbers.
-/// Matches PUC-Rio's `luaL_checknumber` behavior.
-fn check_number(state: &LuaState, name: &str, n: usize) -> LuaResult<f64> {
-    let val = arg(state, n);
-    match val {
-        Val::Num(v) => Ok(v),
-        Val::Str(r) => {
-            let data = state
-                .gc
-                .string_arena
-                .get(r)
-                .map(|s| s.data().to_vec())
-                .unwrap_or_default();
-            let text = String::from_utf8_lossy(&data);
-            crate::vm::execute::str_to_number(&data)
-                .ok_or_else(|| bad_argument(name, n + 1, &format!("number expected, got '{text}'")))
-        }
-        _ => Err(bad_argument(name, n + 1, "number expected")),
-    }
-}
-
-/// Extracts an integer argument (truncates float), coercing strings.
-/// Matches PUC-Rio's `luaL_checkinteger`.
-#[allow(clippy::cast_possible_truncation)]
-fn check_int(state: &LuaState, name: &str, n: usize) -> LuaResult<i64> {
-    Ok(check_number(state, name, n)? as i64)
-}
-
-/// Extracts an optional integer argument, defaulting to `default` if nil/absent.
-#[allow(clippy::cast_possible_truncation)]
-fn opt_int(state: &LuaState, name: &str, n: usize, default: i64) -> LuaResult<i64> {
-    if nargs(state) <= n || matches!(arg(state, n), Val::Nil) {
-        return Ok(default);
-    }
-    check_int(state, name, n)
-}
-
 /// Relative string position: negative means back from end.
 /// PUC-Rio's `posrelat`.
 fn posrelat(pos: i64, len: usize) -> i64 {
@@ -108,11 +45,10 @@ fn posrelat(pos: i64, len: usize) -> i64 {
 
 /// `string.len(s)` -- Returns the length of a string.
 pub fn str_len(state: &mut LuaState) -> LuaResult<u32> {
-    check_args("string.len", state, 1)?;
-    let s = check_string(state, "string.len", 0)?;
+    let s = state.check_string(1)?;
     #[allow(clippy::cast_precision_loss)]
     let len = s.len() as f64;
-    state.push(Val::Num(len));
+    state.push_number(len);
     Ok(1)
 }
 
@@ -122,12 +58,11 @@ pub fn str_len(state: &mut LuaState) -> LuaResult<u32> {
 
 /// `string.byte(s [, i [, j]])` -- Returns byte values of characters.
 pub fn str_byte(state: &mut LuaState) -> LuaResult<u32> {
-    check_args("string.byte", state, 1)?;
-    let s = check_string(state, "string.byte", 0)?;
+    let s = state.check_string(1)?;
     let len = s.len();
 
-    let posi = opt_int(state, "string.byte", 1, 1).map(|i| posrelat(i, len))?;
-    let pose = opt_int(state, "string.byte", 2, posi).map(|j| posrelat(j, len))?;
+    let posi = state.opt_integer(2, 1).map(|i| posrelat(i, len))?;
+    let pose = state.opt_integer(3, posi).map(|j| posrelat(j, len))?;
 
     let posi = posi.max(1) as usize;
     let pose = pose.min(len as i64).max(0) as usize;
@@ -155,12 +90,12 @@ pub fn str_char(state: &mut LuaState) -> LuaResult<u32> {
     let n = nargs(state);
     let mut buf = Vec::with_capacity(n);
 
-    for i in 0..n {
-        let c = check_number(state, "string.char", i)?;
+    for i in 1..=n {
+        let c = state.check_number(i)?;
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let byte = c as u32;
         if byte > 255 {
-            return Err(bad_argument("string.char", i + 1, "invalid value"));
+            return Err(state.arg_error(i, "invalid value"));
         }
         #[allow(clippy::cast_possible_truncation)]
         buf.push(byte as u8);
@@ -177,13 +112,12 @@ pub fn str_char(state: &mut LuaState) -> LuaResult<u32> {
 
 /// `string.sub(s, i [, j])` -- Returns a substring.
 pub fn str_sub(state: &mut LuaState) -> LuaResult<u32> {
-    check_args("string.sub", state, 2)?;
-    let s = check_string(state, "string.sub", 0)?;
+    let s = state.check_string(1)?;
     let len = s.len();
 
-    let start = posrelat(check_int(state, "string.sub", 1)?, len);
+    let start = posrelat(state.check_integer(2)?, len);
     #[allow(clippy::cast_possible_truncation)]
-    let end = opt_int(state, "string.sub", 2, len as i64).map(|j| posrelat(j, len))?;
+    let end = state.opt_integer(3, len as i64).map(|j| posrelat(j, len))?;
 
     let start = start.max(1) as usize;
     let end = end.min(len as i64).max(0) as usize;
@@ -207,9 +141,8 @@ const MAX_STRING_SIZE: usize = (u32::MAX - 2) as usize;
 
 /// `string.rep(s, n)` -- Returns a string repeated n times.
 pub fn str_rep(state: &mut LuaState) -> LuaResult<u32> {
-    check_args("string.rep", state, 2)?;
-    let s = check_string(state, "string.rep", 0)?;
-    let n = check_int(state, "string.rep", 1)?;
+    let s = state.check_string(1)?;
+    let n = state.check_integer(2)?;
 
     if n <= 0 {
         let r = state.gc.intern_string(b"");
@@ -239,8 +172,7 @@ pub fn str_rep(state: &mut LuaState) -> LuaResult<u32> {
 
 /// `string.reverse(s)` -- Returns the string reversed.
 pub fn str_reverse(state: &mut LuaState) -> LuaResult<u32> {
-    check_args("string.reverse", state, 1)?;
-    let s = check_string(state, "string.reverse", 0)?;
+    let s = state.check_string(1)?;
     let mut reversed = s;
     reversed.reverse();
     let r = state.gc.intern_string(&reversed);
@@ -256,8 +188,7 @@ pub fn str_reverse(state: &mut LuaState) -> LuaResult<u32> {
 /// Uses libc `tolower` for locale-aware conversion (matching PUC-Rio).
 #[allow(unsafe_code)]
 pub fn str_lower(state: &mut LuaState) -> LuaResult<u32> {
-    check_args("string.lower", state, 1)?;
-    let s = check_string(state, "string.lower", 0)?;
+    let s = state.check_string(1)?;
     let lowered: Vec<u8> = s
         .iter()
         .map(|&c| unsafe { tolower(i32::from(c)) as u8 })
@@ -275,8 +206,7 @@ pub fn str_lower(state: &mut LuaState) -> LuaResult<u32> {
 /// Uses libc `toupper` for locale-aware conversion (matching PUC-Rio).
 #[allow(unsafe_code)]
 pub fn str_upper(state: &mut LuaState) -> LuaResult<u32> {
-    check_args("string.upper", state, 1)?;
-    let s = check_string(state, "string.upper", 0)?;
+    let s = state.check_string(1)?;
     let uppered: Vec<u8> = s
         .iter()
         .map(|&c| unsafe { toupper(i32::from(c)) as u8 })
@@ -300,8 +230,7 @@ const LUA_MAXCAPTURES: usize = 32;
 ///
 /// Reference: `str_format` in `lstrlib.c`.
 pub fn str_format(state: &mut LuaState) -> LuaResult<u32> {
-    check_args("string.format", state, 1)?;
-    let fmt = check_string(state, "string.format", 0)?;
+    let fmt = state.check_string(1)?;
     let mut result = Vec::new();
     let mut arg_idx = 1usize; // Next argument index (0 = format string itself).
     let mut i = 0;
@@ -1471,13 +1400,12 @@ impl<'a> MatchState<'a> {
 ///
 /// Returns start and end indices (1-based) plus captures, or nil.
 pub fn str_find(state: &mut LuaState) -> LuaResult<u32> {
-    check_args("string.find", state, 2)?;
-    let s = check_string(state, "string.find", 0)?;
-    let pat = check_string(state, "string.find", 1)?;
+    let s = state.check_string(1)?;
+    let pat = state.check_string(2)?;
 
     let plain_val = arg(state, 3);
 
-    let init = opt_int(state, "string.find", 2, 1).map(|i| posrelat(i, s.len()))?;
+    let init = state.opt_integer(3, 1).map(|i| posrelat(i, s.len()))?;
     let init = (init.max(1) as usize).saturating_sub(1); // Convert to 0-based.
     let plain = plain_val.is_truthy();
 
@@ -1569,11 +1497,10 @@ fn push_captures(state: &mut LuaState, ms: &MatchState<'_>, src: &[u8]) -> LuaRe
 
 /// `string.match(s, pattern [, init])` -- Extract captures from first match.
 pub fn str_match(state: &mut LuaState) -> LuaResult<u32> {
-    check_args("string.match", state, 2)?;
-    let s = check_string(state, "string.match", 0)?;
-    let pat = check_string(state, "string.match", 1)?;
+    let s = state.check_string(1)?;
+    let pat = state.check_string(2)?;
 
-    let init_raw = opt_int(state, "string.match", 2, 1)?;
+    let init_raw = state.opt_integer(3, 1)?;
     let init = posrelat(init_raw, s.len());
     let init = (init.max(1) as usize).saturating_sub(1);
 
@@ -1610,7 +1537,9 @@ pub fn str_match(state: &mut LuaState) -> LuaResult<u32> {
 ///
 /// We implement this by creating a Rust closure that holds state.
 pub fn str_gmatch(state: &mut LuaState) -> LuaResult<u32> {
-    check_args("string.gmatch", state, 2)?;
+    // Validate that the first two arguments exist and are convertible to strings.
+    let _ = state.check_string(1)?;
+    let _ = state.check_string(2)?;
     let s_val = arg(state, 0);
     let pat_val = arg(state, 1);
 
@@ -1723,12 +1652,15 @@ fn gmatch_aux(state: &mut LuaState) -> LuaResult<u32> {
 ///
 /// `repl` can be a string, table, or function.
 pub fn str_gsub(state: &mut LuaState) -> LuaResult<u32> {
-    check_args("string.gsub", state, 3)?;
-    let s = check_string(state, "string.gsub", 0)?;
-    let pat = check_string(state, "string.gsub", 1)?;
+    let s = state.check_string(1)?;
+    let pat = state.check_string(2)?;
+    // gsub.repl can be string, table, or function — fetch the raw Val.
+    if nargs(state) < 3 {
+        return Err(state.type_error(3, "string/function/table"));
+    }
     let repl_val = arg(state, 2);
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    let max_replacements = opt_int(state, "string.gsub", 3, i64::MAX)?.max(0) as usize;
+    let max_replacements = state.opt_integer(4, i64::MAX)?.max(0) as usize;
 
     let anchor = !pat.is_empty() && pat[0] == b'^';
     let pat_start = usize::from(anchor);
@@ -1961,11 +1893,9 @@ fn val_to_replacement(
 ///
 /// Stub: not yet implemented (requires bytecode serialization).
 pub fn str_dump(state: &mut LuaState) -> LuaResult<u32> {
-    check_args("string.dump", state, 1)?;
-
     let func_val = arg(state, 0);
     let Val::Function(closure_ref) = func_val else {
-        return Err(bad_argument("string.dump", 1, "function expected"));
+        return Err(state.type_error(1, "function"));
     };
 
     // Get the Proto from the closure (must be a Lua closure).

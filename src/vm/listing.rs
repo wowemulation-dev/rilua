@@ -244,11 +244,9 @@ fn format_code(proto: &Proto, out: &mut String) {
                 out.push_str("\t; ");
                 format_constant_raw(proto, bx as usize, out);
             }
-            OpCode::GetTable | OpCode::OpSelf => {
-                if is_k(c) {
-                    out.push_str("\t; ");
-                    format_constant(proto, index_k(c) as usize, out);
-                }
+            OpCode::GetTable | OpCode::OpSelf if is_k(c) => {
+                out.push_str("\t; ");
+                format_constant(proto, index_k(c) as usize, out);
             }
             OpCode::SetTable
             | OpCode::Add
@@ -259,30 +257,28 @@ fn format_code(proto: &Proto, out: &mut String) {
             | OpCode::Pow
             | OpCode::Eq
             | OpCode::Lt
-            | OpCode::Le => {
-                if is_k(b) || is_k(c) {
-                    out.push_str("\t; ");
-                    if is_k(b) {
-                        format_constant(proto, index_k(b) as usize, out);
-                    } else {
-                        out.push('-');
-                    }
-                    out.push(' ');
-                    if is_k(c) {
-                        format_constant(proto, index_k(c) as usize, out);
-                    } else {
-                        out.push('-');
-                    }
+            | OpCode::Le
+                if is_k(b) || is_k(c) =>
+            {
+                out.push_str("\t; ");
+                if is_k(b) {
+                    format_constant(proto, index_k(b) as usize, out);
+                } else {
+                    out.push('-');
+                }
+                out.push(' ');
+                if is_k(c) {
+                    format_constant(proto, index_k(c) as usize, out);
+                } else {
+                    out.push('-');
                 }
             }
             OpCode::Jmp | OpCode::ForLoop | OpCode::ForPrep => {
                 let _ = write!(out, "\t; to {}", sbx + pc as i32 + 2);
             }
-            OpCode::Closure => {
-                if (bx as usize) < proto.protos.len() {
-                    let child_ptr = ProtoRef::as_ptr(&proto.protos[bx as usize]) as usize;
-                    let _ = write!(out, "\t; {child_ptr:#x}");
-                }
+            OpCode::Closure if (bx as usize) < proto.protos.len() => {
+                let child_ptr = ProtoRef::as_ptr(&proto.protos[bx as usize]) as usize;
+                let _ = write!(out, "\t; {child_ptr:#x}");
             }
             OpCode::SetList => {
                 if c == 0 {

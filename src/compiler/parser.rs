@@ -1066,19 +1066,13 @@ impl<'a> Parser<'a> {
                 Ok(TableField::IndexField { key, value, span })
             }
             // name = expr (need lookahead to distinguish from positional expr)
-            Token::Name(_) => {
-                // Check if this is name = expr or just expr
-                if self.lexer.lookahead()? == &Token::Char(b'=') {
-                    let (name, _) = self.expect_name()?;
-                    self.expect_char(b'=')?;
-                    let value = self.parse_expr()?;
-                    Ok(TableField::NameField { name, value, span })
-                } else {
-                    let value = self.parse_expr()?;
-                    Ok(TableField::ValueField { value, span })
-                }
+            Token::Name(_) if self.lexer.lookahead()? == &Token::Char(b'=') => {
+                let (name, _) = self.expect_name()?;
+                self.expect_char(b'=')?;
+                let value = self.parse_expr()?;
+                Ok(TableField::NameField { name, value, span })
             }
-            // Positional value
+            // Positional value (covers Token::Name(_) without `=` lookahead too)
             _ => {
                 let value = self.parse_expr()?;
                 Ok(TableField::ValueField { value, span })

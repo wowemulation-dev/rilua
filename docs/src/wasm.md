@@ -67,7 +67,7 @@ computation work without restrictions.
 
 For WASM builds, load only the libraries that work:
 
-```rust
+```text
 use rilua::{Lua, StdLib};
 
 let libs = StdLib::BASE | StdLib::STRING | StdLib::TABLE
@@ -102,7 +102,7 @@ crate-type = ["cdylib"]
 
 Example `lib.rs`:
 
-```rust
+```text
 use wasm_bindgen::prelude::*;
 use rilua::{Lua, StdLib};
 

@@ -10,7 +10,7 @@ Currently, native functions must be declared as `fn` pointers
 state. A closure-based API would allow registering Rust closures
 directly:
 
-```rust
+```text
 impl Lua {
     /// Create a Lua-callable function from a Rust closure.
     pub fn create_function<F>(&mut self, func: F) -> LuaResult<Function>
@@ -29,7 +29,7 @@ slots for state, which works but is less ergonomic for embedders.
 Function calling and coroutine resuming currently use raw `Val` slices.
 Trait-based versions would automatically convert arguments and results:
 
-```rust
+```text
 impl Lua {
     /// Call a Lua function with trait-based argument/result conversion.
     pub fn call<A, R>(&mut self, func: Function, args: A) -> LuaResult<R>
@@ -75,7 +75,7 @@ Currently `IntoLuaMulti` and `FromLuaMulti` are only implemented for
 `Vec<Val>` and `()`. Tuple impls would enable ergonomic multi-argument
 and multi-return patterns:
 
-```rust
+```text
 // Implemented for tuples up to reasonable arity:
 impl<A: IntoLua, B: IntoLua> IntoLuaMulti for (A, B) { ... }
 impl<A: FromLua, B: FromLua> FromLuaMulti for (A, B) { ... }
@@ -84,7 +84,7 @@ impl<A: FromLua, B: FromLua> FromLuaMulti for (A, B) { ... }
 
 This enables patterns like:
 
-```rust
+```text
 let (name, age): (String, f64) = lua.call(func, ("query", 42))?;
 ```
 
@@ -99,7 +99,7 @@ container types:
 | `HashMap<K, V>` | table | Key and value types must implement traits |
 | `Option<T>` | T or nil | `None` maps to nil, `Some(v)` maps to v |
 
-```rust
+```text
 impl<T: IntoLua> IntoLua for Vec<T> { ... }
 impl<T: FromLua> FromLua for Vec<T> { ... }
 
@@ -115,7 +115,7 @@ impl<T: FromLua> FromLua for Option<T> { ... }
 Table handles currently only support raw access with `Val` keys.
 Trait-based accessors would add type conversion and metamethod support:
 
-```rust
+```text
 impl Table {
     /// Get with metamethods and type conversion.
     pub fn get<K: IntoLua, V: FromLua>(
@@ -152,7 +152,7 @@ The current userdata system uses `Box<dyn Any>` with manual metatable
 construction. An mlua-style `UserData` trait would allow declarative
 method and field registration:
 
-```rust
+```text
 pub trait UserData {
     fn add_methods(methods: &mut UserDataMethods<Self>);
     fn add_fields(fields: &mut UserDataFields<Self>);
@@ -179,7 +179,7 @@ impl<T> UserDataMethods<T> {
 
 Usage:
 
-```rust
+```text
 struct Player { name: String, health: f64 }
 
 impl UserData for Player {
@@ -202,7 +202,7 @@ Currently, native functions interact with the stack directly via
 `LuaState` methods (`check_number`, `check_string`, etc.). Higher-level
 helpers on `Lua` would provide trait-based argument extraction:
 
-```rust
+```text
 impl Lua {
     /// Get argument at 1-based index, converting via FromLua.
     /// Raises an argument error if the value is missing or wrong type.
@@ -215,7 +215,7 @@ impl Lua {
 
 This would enable:
 
-```rust
+```text
 lua.register_function("greet", |lua| {
     let name: String = lua.check_arg(1)?;
     lua.push(format!("Hello, {name}!"))?;

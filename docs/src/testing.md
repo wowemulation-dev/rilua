@@ -76,7 +76,7 @@ available.
 
 Test helpers in `tests/helpers/`:
 
-```rust
+```text
 // tests/helpers/oracle.rs
 
 /// Run code in PUC-Rio Lua 5.1.1 and return (stdout, stderr, exit_code).
@@ -94,7 +94,7 @@ fn assert_matches_reference(code: &str);
 
 Usage in tests:
 
-```rust
+```text
 #[test]
 fn arithmetic_matches_reference() {
     assert_matches_reference("print(1 + 2)");
@@ -111,7 +111,7 @@ Lua snippets with both rilua and `luac -l`, then compare instruction
 output. This verifies the compiler produces correct bytecode before
 the VM exists.
 
-```rust
+```text
 /// Compile code with rilua and return a formatted instruction listing.
 fn compile_rilua(code: &str) -> String;
 

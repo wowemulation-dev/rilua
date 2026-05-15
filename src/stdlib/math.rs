@@ -3,7 +3,6 @@
 //! Reference: `lmathlib.c` in PUC-Rio Lua 5.1.1.
 
 use crate::error::{LuaError, LuaResult, RuntimeError};
-use crate::vm::execute::coerce_to_number;
 use crate::vm::state::LuaState;
 use crate::vm::value::Val;
 
@@ -26,42 +25,6 @@ fn nargs(state: &LuaState) -> usize {
     state.top.saturating_sub(state.base)
 }
 
-#[inline]
-fn arg(state: &LuaState, n: usize) -> Val {
-    let idx = state.base + n;
-    if idx < state.top {
-        state.stack_get(idx)
-    } else {
-        Val::Nil
-    }
-}
-
-fn bad_argument(name: &str, n: usize, msg: &str) -> LuaError {
-    LuaError::Runtime(RuntimeError {
-        message: format!("bad argument #{n} to '{name}' ({msg})"),
-        level: 0,
-        traceback: vec![],
-    })
-}
-
-/// Extracts a number argument, coercing strings like `luaL_checknumber`.
-fn check_number(state: &LuaState, name: &str, n: usize) -> LuaResult<f64> {
-    let val = arg(state, n);
-    match val {
-        Val::Num(v) => Ok(v),
-        Val::Str(_) => coerce_to_number(val, &state.gc)
-            .ok_or_else(|| bad_argument(name, n + 1, "number expected")),
-        _ => Err(bad_argument(name, n + 1, "number expected")),
-    }
-}
-
-/// Extracts an integer argument (truncates float), matching `luaL_checkint`.
-fn check_int(state: &LuaState, name: &str, n: usize) -> LuaResult<i32> {
-    let v = check_number(state, name, n)?;
-    #[allow(clippy::cast_possible_truncation)]
-    Ok(v as i32)
-}
-
 // ---------------------------------------------------------------------------
 // Return helpers
 // ---------------------------------------------------------------------------
@@ -79,82 +42,82 @@ fn push_num(state: &mut LuaState, n: f64) -> LuaResult<u32> {
 // ---------------------------------------------------------------------------
 
 pub fn math_abs(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "abs", 0)?;
+    let x = state.check_number(1)?;
     push_num(state, x.abs())
 }
 
 pub fn math_sin(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "sin", 0)?;
+    let x = state.check_number(1)?;
     push_num(state, x.sin())
 }
 
 pub fn math_cos(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "cos", 0)?;
+    let x = state.check_number(1)?;
     push_num(state, x.cos())
 }
 
 pub fn math_tan(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "tan", 0)?;
+    let x = state.check_number(1)?;
     push_num(state, x.tan())
 }
 
 pub fn math_sinh(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "sinh", 0)?;
+    let x = state.check_number(1)?;
     push_num(state, x.sinh())
 }
 
 pub fn math_cosh(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "cosh", 0)?;
+    let x = state.check_number(1)?;
     push_num(state, x.cosh())
 }
 
 pub fn math_tanh(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "tanh", 0)?;
+    let x = state.check_number(1)?;
     push_num(state, x.tanh())
 }
 
 pub fn math_asin(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "asin", 0)?;
+    let x = state.check_number(1)?;
     push_num(state, x.asin())
 }
 
 pub fn math_acos(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "acos", 0)?;
+    let x = state.check_number(1)?;
     push_num(state, x.acos())
 }
 
 pub fn math_atan(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "atan", 0)?;
+    let x = state.check_number(1)?;
     push_num(state, x.atan())
 }
 
 pub fn math_ceil(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "ceil", 0)?;
+    let x = state.check_number(1)?;
     push_num(state, x.ceil())
 }
 
 pub fn math_floor(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "floor", 0)?;
+    let x = state.check_number(1)?;
     push_num(state, x.floor())
 }
 
 pub fn math_sqrt(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "sqrt", 0)?;
+    let x = state.check_number(1)?;
     push_num(state, x.sqrt())
 }
 
 pub fn math_exp(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "exp", 0)?;
+    let x = state.check_number(1)?;
     push_num(state, x.exp())
 }
 
 pub fn math_log(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "log", 0)?;
+    let x = state.check_number(1)?;
     push_num(state, x.ln())
 }
 
 pub fn math_log10(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "log10", 0)?;
+    let x = state.check_number(1)?;
     push_num(state, x.log10())
 }
 
@@ -163,27 +126,28 @@ pub fn math_log10(state: &mut LuaState) -> LuaResult<u32> {
 // ---------------------------------------------------------------------------
 
 pub fn math_atan2(state: &mut LuaState) -> LuaResult<u32> {
-    let y = check_number(state, "atan2", 0)?;
-    let x = check_number(state, "atan2", 1)?;
+    let y = state.check_number(1)?;
+    let x = state.check_number(2)?;
     push_num(state, y.atan2(x))
 }
 
 pub fn math_fmod(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "fmod", 0)?;
-    let y = check_number(state, "fmod", 1)?;
+    let x = state.check_number(1)?;
+    let y = state.check_number(2)?;
     // Rust's % operator for f64 is IEEE 754 remainder (same as C fmod).
     push_num(state, x % y)
 }
 
 pub fn math_pow(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "pow", 0)?;
-    let y = check_number(state, "pow", 1)?;
+    let x = state.check_number(1)?;
+    let y = state.check_number(2)?;
     push_num(state, x.powf(y))
 }
 
 pub fn math_ldexp(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "ldexp", 0)?;
-    let e = check_int(state, "ldexp", 1)?;
+    let x = state.check_number(1)?;
+    #[allow(clippy::cast_possible_truncation)]
+    let e = state.check_integer(2)? as i32;
     push_num(state, ldexp(x, e))
 }
 
@@ -192,12 +156,12 @@ pub fn math_ldexp(state: &mut LuaState) -> LuaResult<u32> {
 // ---------------------------------------------------------------------------
 
 pub fn math_deg(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "deg", 0)?;
+    let x = state.check_number(1)?;
     push_num(state, x / RADIANS_PER_DEGREE)
 }
 
 pub fn math_rad(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "rad", 0)?;
+    let x = state.check_number(1)?;
     push_num(state, x * RADIANS_PER_DEGREE)
 }
 
@@ -207,7 +171,7 @@ pub fn math_rad(state: &mut LuaState) -> LuaResult<u32> {
 
 /// `math.modf(x)` -- returns integer part and fractional part.
 pub fn math_modf(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "modf", 0)?;
+    let x = state.check_number(1)?;
     let ip = x.trunc();
     let fp = x - ip;
     state.ensure_stack(state.base + 2);
@@ -219,7 +183,7 @@ pub fn math_modf(state: &mut LuaState) -> LuaResult<u32> {
 
 /// `math.frexp(x)` -- returns mantissa and exponent such that x = m * 2^e.
 pub fn math_frexp(state: &mut LuaState) -> LuaResult<u32> {
-    let x = check_number(state, "frexp", 0)?;
+    let x = state.check_number(1)?;
     let (m, e) = frexp(x);
     state.ensure_stack(state.base + 2);
     state.stack_set(state.base, Val::Num(m));
@@ -236,11 +200,11 @@ pub fn math_frexp(state: &mut LuaState) -> LuaResult<u32> {
 pub fn math_min(state: &mut LuaState) -> LuaResult<u32> {
     let n = nargs(state);
     if n == 0 {
-        return Err(bad_argument("min", 1, "number expected"));
+        return Err(state.type_error(1, "number"));
     }
-    let mut dmin = check_number(state, "min", 0)?;
-    for i in 1..n {
-        let d = check_number(state, "min", i)?;
+    let mut dmin = state.check_number(1)?;
+    for i in 2..=n {
+        let d = state.check_number(i)?;
         if d < dmin {
             dmin = d;
         }
@@ -252,11 +216,11 @@ pub fn math_min(state: &mut LuaState) -> LuaResult<u32> {
 pub fn math_max(state: &mut LuaState) -> LuaResult<u32> {
     let n = nargs(state);
     if n == 0 {
-        return Err(bad_argument("max", 1, "number expected"));
+        return Err(state.type_error(1, "number"));
     }
-    let mut dmax = check_number(state, "max", 0)?;
-    for i in 1..n {
-        let d = check_number(state, "max", i)?;
+    let mut dmax = state.check_number(1)?;
+    for i in 2..=n {
+        let d = state.check_number(i)?;
         if d > dmax {
             dmax = d;
         }
@@ -301,23 +265,23 @@ pub fn math_random(state: &mut LuaState) -> LuaResult<u32> {
         }
         1 => {
             // One argument: integer in [1, u].
-            let u = check_int(state, "random", 0)?;
+            let u = state.check_integer(1)?;
             if u < 1 {
-                return Err(bad_argument("random", 1, "interval is empty"));
+                return Err(state.arg_error(1, "interval is empty"));
             }
             #[allow(clippy::cast_precision_loss)]
-            let result = (r * f64::from(u)).floor() + 1.0;
+            let result = (r * u as f64).floor() + 1.0;
             push_num(state, result)
         }
         2 => {
             // Two arguments: integer in [l, u].
-            let l = check_int(state, "random", 0)?;
-            let u = check_int(state, "random", 1)?;
+            let l = state.check_integer(1)?;
+            let u = state.check_integer(2)?;
             if l > u {
-                return Err(bad_argument("random", 2, "interval is empty"));
+                return Err(state.arg_error(2, "interval is empty"));
             }
             #[allow(clippy::cast_precision_loss)]
-            let result = (r * f64::from(u - l + 1)).floor() + f64::from(l);
+            let result = (r * (u - l + 1) as f64).floor() + l as f64;
             push_num(state, result)
         }
         _ => Err(LuaError::Runtime(RuntimeError {
@@ -330,7 +294,7 @@ pub fn math_random(state: &mut LuaState) -> LuaResult<u32> {
 
 /// `math.randomseed(x)` -- sets the seed for the pseudo-random generator.
 pub fn math_randomseed(state: &mut LuaState) -> LuaResult<u32> {
-    let seed = check_int(state, "randomseed", 0)?;
+    let seed = state.check_integer(1)?;
     #[allow(clippy::cast_sign_loss)]
     {
         state.rng_state = seed as u64;

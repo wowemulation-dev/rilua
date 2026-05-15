@@ -171,20 +171,22 @@ Benchmark script and runner: `scripts/benchmark-implementations.sh`.
 
 Trait-based API inspired by mlua's design:
 
-```rust
-use rilua::{Lua, IntoLua, FromLua};
+```text
+use rilua::vm::state::LuaState;
+use rilua::{Lua, LuaApiMut, LuaResult};
 
-let lua = Lua::new();
+let mut lua = Lua::new()?;
 lua.set_global("x", 42)?;
 let val: i32 = lua.global("x")?;
 
-// Register a Rust function
-lua.register_function("add", |state| {
-    let a: f64 = state.arg(1)?;
-    let b: f64 = state.arg(2)?;
-    state.push(a + b)?;
+// Register a Rust function -- function pointer, not a closure.
+fn add(state: &mut LuaState) -> LuaResult<u32> {
+    let a = state.check_number(1)?;
+    let b = state.check_number(2)?;
+    state.push_number(a + b);
     Ok(1)
-})?;
+}
+lua.register_function("add", add)?;
 
 // UserData
 lua.create_typed_userdata::<MyType>(value)?;
@@ -204,7 +206,7 @@ Key characteristics:
 
 More feature-rich API with closures, async, scoped borrows:
 
-```rust
+```text
 use mlua::prelude::*;
 
 let lua = Lua::new();
@@ -239,7 +241,7 @@ Key characteristics:
 Feature-rich API closer to mlua's level, with closures, async, derive
 macros, and table builders:
 
-```rust
+```text
 use luars::{LuaVM, Stdlib, LuaValue, TableBuilder};
 use luars::lua_vm::SafeOption;
 

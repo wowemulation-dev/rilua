@@ -71,25 +71,19 @@ pub fn symbexec(proto: &Proto, lastpc: usize, reg: u32) -> u32 {
                 }
             }
 
-            OpCode::OpSelf => {
+            OpCode::OpSelf if reg == a + 1 => {
                 // SELF also writes to a+1
-                if reg == a + 1 {
-                    last = pc;
-                }
+                last = pc;
             }
 
-            OpCode::Call | OpCode::TailCall => {
+            OpCode::Call | OpCode::TailCall if reg >= a => {
                 // Overwrites all registers >= a
-                if reg >= a {
-                    last = pc;
-                }
+                last = pc;
             }
 
-            OpCode::TForLoop => {
+            OpCode::TForLoop if reg >= a + 2 => {
                 // Writes to registers >= a+2
-                if reg >= a + 2 {
-                    last = pc;
-                }
+                last = pc;
             }
 
             OpCode::Jmp | OpCode::ForLoop | OpCode::ForPrep => {
