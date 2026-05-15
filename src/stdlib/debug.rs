@@ -573,7 +573,7 @@ fn extract_closure_info(
         Closure::Lua(lcl) => ClosureInfo {
             is_lua: true,
             source: lcl.proto.source.clone(),
-            short_src: chunkid(&lcl.proto.source),
+            short_src: chunkid(&lcl.proto.source).into(),
             line_defined: i64::from(lcl.proto.line_defined),
             last_line_defined: i64::from(lcl.proto.last_line_defined),
             what: if lcl.proto.line_defined == 0 {
