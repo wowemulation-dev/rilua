@@ -4,7 +4,7 @@
 [tools]
 # ── Toolchain ──────────────────────────────────
 rust = "stable"
-node = "22"
+node = "24"
 
 # ── Build tools ────────────────────────────────
 "cargo:cross" = "latest"
@@ -17,7 +17,7 @@ node = "22"
 
 # ── Linting and auditing ─────────────────────
 "cargo:cargo-deny" = "latest"
-"npm:markdownlint-cli2" = "latest"
+"npm:markdownlint-cli" = "latest"
 actionlint = "latest"
 
 # ── Documentation ─────────────────────────────
