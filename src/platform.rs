@@ -38,6 +38,7 @@ pub(crate) enum LibcFile {}
 #[allow(unsafe_code)]
 #[cfg_attr(target_env = "msvc", link(name = "ucrt"))]
 #[cfg_attr(target_env = "msvc", link(name = "legacy_stdio_definitions"))]
+#[allow(unknown_lints)]
 #[allow(suspicious_runtime_symbol_definitions)]
 unsafe extern "C" {
     pub(crate) fn fopen(filename: *const u8, mode: *const u8) -> *mut LibcFile;
