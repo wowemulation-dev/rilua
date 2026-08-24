@@ -7,8 +7,8 @@
 //! Usage:
 //!     cargo run --example native_function
 
-use rilua::vm::state::LuaState;
 use rilua::LuaResult;
+use rilua::vm::state::LuaState;
 use rilua::{Lua, LuaApiMut, RustFn};
 
 /// A native function that adds two numbers.

@@ -10,9 +10,7 @@
 use rilua::{Lua, StdLib};
 
 fn main() -> rilua::LuaResult<()> {
-    let mut lua = Lua::new_with(
-        StdLib::BASE | StdLib::STRING | StdLib::TABLE | StdLib::MATH,
-    )?;
+    let mut lua = Lua::new_with(StdLib::BASE | StdLib::STRING | StdLib::TABLE | StdLib::MATH)?;
     // io, os, debug, package omitted (sandboxed)
     lua.exec(r#"print(string.upper("ok"))"#)?;
     Ok(())
