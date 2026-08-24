@@ -8,6 +8,40 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.22](https://github.com/wowemulation-dev/rilua/compare/v0.1.21...v0.1.22) - 2026-08-24
+
+### Added
+
+- *(api)* expose check_/push_/error helpers on LuaState
+
+### Documentation
+
+- update unsafe code descriptions across project docs
+
+### Fixed
+
+- *(ci)* silence unknown lint on MSRV toolchain
+
+### Changelog
+
+- add unreleased entries for compiler, docs, tooling, and fixes
+
+### Compiler
+
+- fix debug line numbers and PUC-Rio ordering
+
+### Examples
+
+- fix import ordering and formatting
+
+### Tooling
+
+- switch from markdownlint-cli2 to markdownlint-cli
+
+### Vm
+
+- fix line continuation in arg_error
+
 ### Compiler
 
 - fix debug line numbers to use self.current_line for accurate source positions
