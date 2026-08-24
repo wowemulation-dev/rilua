@@ -666,8 +666,7 @@ impl LuaState {
     ///
     /// Matches PUC-Rio's `luaL_argerror` from `lauxlib.c`. `narg` is 1-based.
     pub fn arg_error(&self, narg: usize, msg: &str) -> crate::error::LuaError {
-        let name_info =
-            super::debug_info::getfuncname(self, self.ci, &self.gc.string_arena);
+        let name_info = super::debug_info::getfuncname(self, self.ci, &self.gc.string_arena);
         let message = match name_info {
             Some(("method", ref name)) => {
                 let adjusted = narg.saturating_sub(1);
