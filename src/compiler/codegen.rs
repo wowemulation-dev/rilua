@@ -944,7 +944,8 @@ impl Compiler {
     // -- Expression discharge --
 
     /// Converts variable expressions to values by emitting load instructions.
-    pub(crate) fn discharge_vars(&mut self, e: &mut ExprContext, line: u32) {
+    pub(crate) fn discharge_vars(&mut self, e: &mut ExprContext, _line: u32) {
+        let line = self.current_line;
         match e.kind {
             ExprKind::Local => {
                 e.kind = ExprKind::NonReloc;
@@ -1027,7 +1028,8 @@ impl Compiler {
     /// emits LOADBOOL pair to materialize the boolean value.
     /// Maps to PUC-Rio's `exp2reg`.
     #[allow(clippy::cast_sign_loss)]
-    pub(crate) fn exp2reg(&mut self, e: &mut ExprContext, reg: u32, line: u32) {
+    pub(crate) fn exp2reg(&mut self, e: &mut ExprContext, reg: u32, _line: u32) {
+        let line = self.current_line;
         self.discharge2reg(e, reg, line);
         if e.kind == ExprKind::Jmp {
             let mut e_t = e.t;
@@ -1071,7 +1073,8 @@ impl Compiler {
     }
 
     /// Discharges expression directly to a specific register.
-    fn discharge2reg(&mut self, e: &mut ExprContext, reg: u32, line: u32) {
+    fn discharge2reg(&mut self, e: &mut ExprContext, reg: u32, _line: u32) {
+        let line = self.current_line;
         self.discharge_vars(e, line);
         match e.kind {
             ExprKind::Nil => {
@@ -1534,7 +1537,7 @@ impl Compiler {
     ) -> LuaResult<()> {
         match op {
             super::ast::BinOp::And => {
-                debug_assert!(e1.t == NO_JUMP);
+                debug_assert_eq!(e1.t, NO_JUMP);
                 self.discharge_vars(e2, line);
                 let mut f = e2.f;
                 self.concat_jumps(&mut f, e1.f);
@@ -1542,7 +1545,8 @@ impl Compiler {
                 *e1 = *e2;
             }
             super::ast::BinOp::Or => {
-                debug_assert!(e1.f == NO_JUMP);
+                debug_assert_eq!(e1.f, NO_JUMP);
+
                 self.discharge_vars(e2, line);
                 let mut t = e2.t;
                 self.concat_jumps(&mut t, e1.t);
@@ -1684,10 +1688,11 @@ impl Compiler {
     /// Panics if called when no function state exists.
     #[allow(clippy::expect_used)]
     pub(crate) fn leave_function(&mut self) -> Proto {
+        // Close remaining local variable debug info before the final return
+        // (PUC-Rio close_func: removevars(ls, 0) before luaK_ret(fs, 0, 0)).
+        self.remove_locals(0);
         // Emit final return
         self.emit_abc(OpCode::Return, 0, 1, 0, self.current_line);
-        // Close remaining local variable debug info (PUC-Rio: removevars(ls, 0)).
-        self.remove_locals(0);
         let mut fs = self
             .func_states
             .pop()
@@ -1703,10 +1708,11 @@ impl Compiler {
     /// Panics if called when no function state exists.
     #[allow(clippy::expect_used)]
     fn finish_main(&mut self) -> Proto {
+        // Close remaining local variable debug info before the final return
+        // (PUC-Rio close_func: removevars(ls, 0) before luaK_ret(fs, 0, 0)).
+        self.remove_locals(0);
         // Emit final return for main chunk
         self.emit_abc(OpCode::Return, 0, 1, 0, self.current_line);
-        // Close remaining local variable debug info (PUC-Rio: removevars(ls, 0)).
-        self.remove_locals(0);
         let mut fs = self
             .func_states
             .pop()
@@ -1942,7 +1948,8 @@ fn compile_assign(
         // nexps == nvars: last target gets the last expression directly.
         compiler.set_one_ret(&mut last_e);
         let last_target = target_exprs[nvars - 1];
-        compiler.storevar(&last_target, &mut last_e, line)?;
+        let l = compiler.current_line;
+        compiler.storevar(&last_target, &mut last_e, l)?;
         // Remaining targets in reverse, each using free_reg-1.
         // storevar calls freeexp which decrements free_reg, so each
         // iteration naturally picks up the next value register.
@@ -1950,7 +1957,8 @@ fn compile_assign(
             let reg = u32::from(compiler.fs().free_reg) - 1;
             let mut val_e = ExprContext::new(ExprKind::NonReloc, reg as i32);
             let t = target_exprs[i];
-            compiler.storevar(&t, &mut val_e, line)?;
+            let l = compiler.current_line;
+            compiler.storevar(&t, &mut val_e, l)?;
         }
     } else {
         adjust_assign(compiler, nvars, nexps, &mut last_e, line)?;
@@ -1963,7 +1971,8 @@ fn compile_assign(
             let reg = u32::from(compiler.fs().free_reg) - 1;
             let mut val_e = ExprContext::new(ExprKind::NonReloc, reg as i32);
             let t = *target;
-            compiler.storevar(&t, &mut val_e, line)?;
+            let l = compiler.current_line;
+            compiler.storevar(&t, &mut val_e, l)?;
         }
     }
 
@@ -2156,11 +2165,10 @@ fn compile_numeric_for(
     compiler.enter_block(true); // loop scope (breakable)
     let base = u32::from(compiler.fs().free_reg);
 
-    // Create 3 hidden control variables + 1 user variable
+    // Create 3 hidden control variables
     compiler.new_local("(for index)")?;
     compiler.new_local("(for limit)")?;
     compiler.new_local("(for step)")?;
-    compiler.new_local(name)?;
 
     // Compile start, stop, step expressions into consecutive registers
     let mut e = compile_expr(compiler, start)?;
@@ -2178,8 +2186,9 @@ fn compile_numeric_for(
         compiler.reserve_regs(1)?;
     }
 
-    // Activate the 3 control variables
+    // Activate the 3 control variables, then declare the user variable
     compiler.activate_locals(3);
+    compiler.new_local(name)?;
 
     // FORPREP: init and jump to condition check
     let prep = compiler.emit_asbx(OpCode::ForPrep, base, NO_JUMP, line);
@@ -2224,17 +2233,16 @@ fn compile_generic_for(
     compiler.new_local("(for state)")?;
     compiler.new_local("(for control)")?;
 
-    // User-declared variables
-    for name in names {
-        compiler.new_local(name)?;
-    }
-
     // Compile iterator expressions, adjust to exactly 3
     let (nexps, mut last_e) = compile_exprlist(compiler, iterators, line)?;
     adjust_assign(compiler, 3, nexps, &mut last_e, line)?;
 
     compiler.check_stack(3)?;
     compiler.activate_locals(3); // control vars
+    // User-declared variables
+    for name in names {
+        compiler.new_local(name)?;
+    }
 
     // JMP over the loop body to TFORLOOP
     let prep = compiler.emit_jump(line);
@@ -2259,7 +2267,7 @@ fn compile_generic_for(
     #[allow(clippy::cast_possible_truncation)]
     let endfor = compiler.emit_abc(OpCode::TForLoop, base, 0, nvars as u32, iter_line);
     // JMP back to the beginning of the loop body
-    let loop_jmp = compiler.emit_jump(iter_line);
+    let loop_jmp = compiler.emit_jump(compiler.current_line);
     compiler.patch_jump(loop_jmp, prep + 1);
 
     let _ = endfor;
@@ -2310,13 +2318,17 @@ fn compile_local_func(
     line: u32,
 ) -> LuaResult<()> {
     // Create local first (function can reference itself)
-    compiler.new_local(name)?;
+    let var_idx = compiler.new_local(name)?;
     compiler.activate_locals(1);
 
     let mut func_e = compile_funcbody(compiler, body, false, line)?;
     // Local is already activated; store into its register
     let reg = u32::from(compiler.fs().num_active_vars) - 1;
     compiler.exp2reg(&mut func_e, reg, line);
+    // Debug info sees the local only after the CLOSURE instruction
+    // (PUC-Rio localfunc: getlocvar(fs, fs->nactvar - 1).startpc = fs->pc).
+    let pc = compiler.fs().proto.code.len() as u32;
+    compiler.fs_mut().proto.local_vars[usize::from(var_idx)].start_pc = pc;
     Ok(())
 }
 
@@ -2457,7 +2469,8 @@ fn adjust_assign(
             compiler.reserve_regs(extra as u32)?;
             // LOADNIL with coalescing (PUC-Rio luaK_nil)
             #[allow(clippy::cast_possible_truncation)]
-            compiler.emit_nil(reg, extra as u32, line);
+            let l = compiler.current_line;
+            compiler.emit_nil(reg, extra as u32, l);
         }
     }
     Ok(())
@@ -2532,7 +2545,7 @@ fn compile_funcbody(
 
     // Emit CLOSURE instruction
     #[allow(clippy::cast_possible_truncation)]
-    let pc = compiler.emit_abx(OpCode::Closure, 0, proto_idx as u32, line);
+    let pc = compiler.emit_abx(OpCode::Closure, 0, proto_idx as u32, body.end_line);
 
     // Emit pseudo-instructions for upvalue capture.
     // Each upvalue has a MOVE (local from current frame) or
@@ -2544,7 +2557,7 @@ fn compile_funcbody(
         } else {
             OpCode::GetUpval
         };
-        compiler.emit_abc(op, 0, u32::from(uv.index), 0, line);
+        compiler.emit_abc(op, 0, u32::from(uv.index), 0, body.end_line);
     }
 
     let e = ExprContext::new(ExprKind::Relocable, pc as i32);
@@ -2581,32 +2594,39 @@ fn compile_expr(compiler: &mut Compiler, expr: &super::ast::Expr) -> LuaResult<E
             op, left, right, ..
         } => {
             let mut e1 = compile_expr(compiler, left)?;
-            compiler.infix(*op, &mut e1, line)?;
+            let l1 = compiler.current_line;
+            compiler.infix(*op, &mut e1, l1)?;
             let mut e2 = compile_expr(compiler, right)?;
-            compiler.postfix(*op, &mut e1, &mut e2, line)?;
+            let l2 = compiler.current_line;
+            compiler.postfix(*op, &mut e1, &mut e2, l2)?;
             Ok(e1)
         }
 
         Expr::UnOp { op, operand, .. } => {
             let mut e = compile_expr(compiler, operand)?;
-            compiler.prefix(*op, &mut e, line)?;
+            let l = compiler.current_line;
+            compiler.prefix(*op, &mut e, l)?;
             Ok(e)
         }
 
         Expr::Index { table, key, .. } => {
             let mut t = compile_expr(compiler, table)?;
-            compiler.exp2anyreg(&mut t, line)?;
+            let l1 = compiler.current_line;
+            compiler.exp2anyreg(&mut t, l1)?;
             let mut k = compile_expr(compiler, key)?;
-            compiler.set_indexed(&mut t, &mut k, line)?;
+            let l2 = compiler.current_line;
+            compiler.set_indexed(&mut t, &mut k, l2)?;
             Ok(t)
         }
 
         Expr::Field { table, field, .. } => {
             let mut t = compile_expr(compiler, table)?;
-            compiler.exp2anyreg(&mut t, line)?;
+            let l1 = compiler.current_line;
+            compiler.exp2anyreg(&mut t, l1)?;
             let k_idx = compiler.string_constant(field.as_bytes())?;
             let mut k = ExprContext::new(ExprKind::K, k_idx as i32);
-            compiler.set_indexed(&mut t, &mut k, line)?;
+            let l2 = compiler.current_line;
+            compiler.set_indexed(&mut t, &mut k, l2)?;
             Ok(t)
         }
 
@@ -2617,18 +2637,23 @@ fn compile_expr(compiler: &mut Compiler, expr: &super::ast::Expr) -> LuaResult<E
             ..
         } => {
             let mut obj = compile_expr(compiler, table)?;
-            compiler.exp2anyreg(&mut obj, line)?;
+            let l1 = compiler.current_line;
+            compiler.exp2anyreg(&mut obj, l1)?;
             let k = compiler.string_constant(method.as_bytes())?;
             let mut key = ExprContext::new(ExprKind::K, k as i32);
-            compiler.code_self(&mut obj, &mut key, line)?;
-            compile_funcargs(compiler, &mut obj, args, line)?;
+            let l2 = compiler.current_line;
+            compiler.code_self(&mut obj, &mut key, l2)?;
+            let l3 = compiler.current_line;
+            compile_funcargs(compiler, &mut obj, args, l3)?;
             Ok(obj)
         }
 
         Expr::Call { func, args, .. } => {
             let mut f = compile_expr(compiler, func)?;
-            compiler.exp2nextreg(&mut f, line)?;
-            compile_funcargs(compiler, &mut f, args, line)?;
+            let l1 = compiler.current_line;
+            compiler.exp2nextreg(&mut f, l1)?;
+            let l2 = compiler.current_line;
+            compile_funcargs(compiler, &mut f, args, l2)?;
             Ok(f)
         }
 
@@ -2641,7 +2666,8 @@ fn compile_expr(compiler: &mut Compiler, expr: &super::ast::Expr) -> LuaResult<E
             // Parenthesized expressions force calls and varargs to return
             // exactly one value. Maps to PUC-Rio's luaK_dischargevars in
             // prefixexp which calls luaK_setoneret for VCALL/VVARARG.
-            compiler.discharge_vars(&mut e, line);
+            let l = compiler.current_line;
+            compiler.discharge_vars(&mut e, l);
             Ok(e)
         }
     }
@@ -2722,13 +2748,15 @@ fn compile_table_ctor(
                     // Last value field with multi-return: expand all results.
                     // Matches PUC-Rio's lastlistfield() in lparser.c.
                     compiler.set_multret(&mut val_e);
-                    compiler.code_setlist(table_reg, na, 0, line); // B=0 = MULTRET
+                    let l = compiler.current_line;
+                    compiler.code_setlist(table_reg, na, 0, l); // B=0 = MULTRET
                     na -= 1; // don't count last (unknown count)
                     tostore = 0;
                 } else {
                     compiler.exp2nextreg(&mut val_e, line)?;
                     if tostore >= LFIELDS_PER_FLUSH {
-                        compiler.code_setlist(table_reg, na, tostore, line);
+                        let l = compiler.current_line;
+                        compiler.code_setlist(table_reg, na, tostore, l);
                         tostore = 0;
                     }
                 }
@@ -2743,7 +2771,8 @@ fn compile_table_ctor(
                 let key_rk = compiler.exp2rk(&mut key_e, line)?;
                 let mut val_e = compile_expr(compiler, value)?;
                 let val_rk = compiler.exp2rk(&mut val_e, line)?;
-                compiler.emit_abc(OpCode::SetTable, table_reg, key_rk, val_rk, line);
+                let l = compiler.current_line;
+                compiler.emit_abc(OpCode::SetTable, table_reg, key_rk, val_rk, l);
                 compiler.free_expr(&val_e);
                 compiler.free_expr(&key_e);
             }
@@ -2754,7 +2783,8 @@ fn compile_table_ctor(
                 let key_rk = compiler.exp2rk(&mut key_e, line)?;
                 let mut val_e = compile_expr(compiler, value)?;
                 let val_rk = compiler.exp2rk(&mut val_e, line)?;
-                compiler.emit_abc(OpCode::SetTable, table_reg, key_rk, val_rk, line);
+                let l = compiler.current_line;
+                compiler.emit_abc(OpCode::SetTable, table_reg, key_rk, val_rk, l);
                 compiler.free_expr(&val_e);
                 compiler.free_expr(&key_e);
             }
@@ -2763,7 +2793,8 @@ fn compile_table_ctor(
 
     // Flush remaining array fields
     if tostore > 0 {
-        compiler.code_setlist(table_reg, na, tostore, line);
+        let l = compiler.current_line;
+        compiler.code_setlist(table_reg, na, tostore, l);
     }
 
     // Backpatch NEWTABLE with actual sizes

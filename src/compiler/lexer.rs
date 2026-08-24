@@ -349,7 +349,7 @@ impl<'a> Lexer<'a> {
                         let s = self.read_long_string(sep, false)?;
                         self.last_token_text =
                             String::from_utf8_lossy(&self.source[token_start..self.pos]).into();
-                        return Ok((Token::Str(s), span));
+                        return Ok((Token::Str(s), self.current_span()));
                     }
                     if sep == -1 {
                         return Err(self.syntax_error_near("invalid long string delimiter", "["));
@@ -416,7 +416,7 @@ impl<'a> Lexer<'a> {
                     let s = self.read_short_string(ch)?;
                     self.last_token_text =
                         String::from_utf8_lossy(&self.source[token_start..self.pos]).into();
-                    return Ok((Token::Str(s), span));
+                    return Ok((Token::Str(s), self.current_span()));
                 }
 
                 _ if ch.is_ascii_digit() => {
@@ -980,7 +980,7 @@ mod tests {
     fn string_decimal_escape_max() {
         let tokens = lex_tokens(r#""\255""#).unwrap();
         // \255 is a valid byte
-        assert!(tokens[0] != Token::Eos);
+        assert_ne!(tokens[0], Token::Eos);
     }
 
     #[test]
