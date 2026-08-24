@@ -4276,6 +4276,21 @@ fn error_msg_call_field() {
 }
 
 #[test]
+fn error_msg_call_field_with_trailing_for_loop() {
+    // Regression test for issue #46: a nil field call inside a numeric for
+    // loop, followed by another numeric for loop, must consistently report
+    // "field 'move'" rather than misattributing to the loop's "(for index)".
+    let script = "local ok, msg = pcall(function() local src = {}; for i = 1, 1000 do src[i] = i end; local dst = {}; for i = 1, 10 do table.move(src, 1, 1000, 1, dst) end; for i = 1, 100 do end end); print(msg)";
+    let (stdout, _, code) = run_rilua(script);
+    assert_eq!(code, 0);
+    assert!(
+        stdout.contains("attempt to call field 'move' (a nil value)"),
+        "got: {stdout}"
+    );
+    assert!(!stdout.contains("(for index)"), "got: {stdout}");
+}
+
+#[test]
 fn error_msg_compare_types() {
     let (stdout, _, code) =
         run_rilua("local ok, msg = pcall(function() return {} < 1 end); print(msg)");
