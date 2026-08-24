@@ -8,6 +8,27 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Compiler
+
+- fix debug line numbers to use self.current_line for accurate source positions
+- reorder remove_locals before emit_abc(Return) to match PUC-Rio close_func ordering
+- remove unused (for step) local variable from numeric for loop
+- use self.current_span() in lexer for accurate span info in string tokens
+
+### Documentation
+
+- clarify unsafe code boundaries (confined to libc FFI and dynmod)
+- update comparison table with actual unsafe code descriptions
+- remove misleading binary compatibility non-goal
+
+### Tooling
+
+- switch from markdownlint-cli2 to markdownlint-cli
+
+### Fixes
+
+- fix import ordering in examples
+- fix line continuation in vm/state.rs
 ## [0.1.21](https://github.com/wowemulation-dev/rilua/compare/v0.1.20...v0.1.21) - 2026-02-27
 
 ### Added
