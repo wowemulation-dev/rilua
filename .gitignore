@@ -5,6 +5,9 @@
 !.gitignore
 !.gitattributes
 
+# Bytecode compiler default output (riluac without -o)
+luac.out
+
 # Added by cargo
 /target
 
