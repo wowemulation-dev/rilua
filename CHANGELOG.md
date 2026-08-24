@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.24](https://github.com/wowemulation-dev/rilua/compare/v0.1.23...v0.1.24) - 2026-08-24
+
+### Testing
+
+- add regression test for issue #46 nil field call misattribution
+
 ## [0.1.22](https://github.com/wowemulation-dev/rilua/compare/v0.1.21...v0.1.22) - 2026-08-24
 
 ### Added
