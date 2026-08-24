@@ -1,6 +1,6 @@
 [package]
 name = "rilua"
-version = "0.1.22"
+version = "0.1.23"
 authors = ["Daniel S. Reichenbach <daniel@kogito.network>"]
 description = "Lua 5.1.1 implemented in Rust, targeting the World of Warcraft addon variant."
 edition = "2024"
