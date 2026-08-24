@@ -14,7 +14,7 @@ performance, API design, and trade-offs.
 | **License** | MIT | MIT | MIT | MIT | MIT |
 | **Dependencies** | 0 | 0 (libc) | 7+ runtime | 0 (C++ stdlib) | 5 runtime |
 | **WASM** | `wasm32-unknown-unknown` | No | `wasm32-unknown-emscripten` | No | `wasm32-unknown-unknown` |
-| **Unsafe Code** | 0 in core VM/GC | N/A (C) | Extensive (FFI) | N/A (C++) | ~400 blocks |
+| **Unsafe Code** | libc FFI + dynmod | N/A (C) | Extensive (FFI) | N/A (C++) | ~400 blocks |
 | **Nightly Rust** | No | N/A | No | N/A | Yes |
 
 ## Architecture
@@ -25,8 +25,9 @@ Pipeline: Lexer -> Parser -> AST -> Compiler -> Bytecode -> VM.
 
 38 register-based opcodes matching PUC-Rio's instruction set. Values
 are a Rust enum (`Val`) with GcRef indices into typed arenas. Arena-based
-incremental mark-sweep GC with generational indices. No unsafe code in
-the VM, compiler, or GC. Errors propagate via `Result<T, LuaError>` --
+incremental mark-sweep GC with generational indices. The GC, compiler,
+and VM data structures are safe Rust; `unsafe` is confined to libc FFI
+calls and `dynmod` module loading. Errors propagate via `Result<T, LuaError>` --
 no `setjmp`/`longjmp`, no panics in library code.
 
 Protos (compiled function bodies) are reference-counted (`Rc<Proto>`)
@@ -104,7 +105,7 @@ Optional: `serde`/`serde_json` for JSON support.
 | Implementation | vs PUC-Rio 5.1 (interpreted) | Notes |
 |---|---|---|
 | **PUC-Rio Lua 5.1** | 1.0x (baseline) | C, `-O2` |
-| **rilua** | ~1.7x slower | Pure Rust, `--release`, 0 unsafe |
+| **rilua** | ~1.7x slower | Pure Rust, `--release`, FFI + dynmod |
 | **lua-rs** | ~1.2x slower | Rust, `--release`, nightly, ~400 unsafe |
 | **mlua** | ~1.0x (wraps PUC-Rio) | FFI overhead at boundaries only |
 | **Luau (interpreted)** | Faster than PUC-Rio | Optimized dispatch, inline caching |
@@ -384,8 +385,8 @@ state and use `Send` to allow moving the state between threads.
 
 - **Zero dependencies**: no C compiler, no system libraries, no
   `pkg-config`, no nightly Rust
-- **No unsafe in core**: the VM, GC, compiler, and stdlib contain
-  zero `unsafe` blocks
+- **Safe memory model**: the GC, compiler, and VM data structures
+  contain zero `unsafe`; FFI is confined to libc calls and `dynmod`
 - **Behavioral equivalence with PUC-Rio 5.1**: bytecode-compatible,
   same 38 opcodes, same GC states, same stdlib edge cases
 - **`Send` support**: feature-gated `Send` for multi-threaded
@@ -430,8 +431,8 @@ state and use `Send` to allow moving the state between threads.
   legacy Lua code)
 - You want zero external dependencies and no C toolchain
 - You are targeting `wasm32-unknown-unknown`
-- Memory safety guarantees in the interpreter matter (no unsafe in
-  core)
+- Memory safety guarantees in the interpreter matter (safe GC and
+  compiler; `unsafe` confined to libc FFI and `dynmod`)
 - You need `Send` support for multi-threaded embedding
 - The embedding scenario has modest performance requirements (scripting
   hooks, configuration, game logic at moderate scale)

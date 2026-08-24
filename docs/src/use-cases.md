@@ -132,5 +132,5 @@ These are explicitly not goals:
   GC; if throughput matters, use LuaJIT
 - **Lua 5.2+ features**: `goto`, integer subtype, bitwise operators
   (native), generalized `for`, `_ENV` -- all out of scope
-- **Binary compatibility with PUC-Rio**: the C ABI, `lua_State*`
-  layout, and bytecode format are intentionally different
+- **Binary compatibility with PUC-Rio**: the C ABI and in-memory
+  `lua_State*` layout are intentionally different

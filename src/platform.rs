@@ -38,6 +38,7 @@ pub(crate) enum LibcFile {}
 #[allow(unsafe_code)]
 #[cfg_attr(target_env = "msvc", link(name = "ucrt"))]
 #[cfg_attr(target_env = "msvc", link(name = "legacy_stdio_definitions"))]
+#[allow(suspicious_runtime_symbol_definitions)]
 unsafe extern "C" {
     pub(crate) fn fopen(filename: *const u8, mode: *const u8) -> *mut LibcFile;
     pub(crate) fn fclose(file: *mut LibcFile) -> i32;
@@ -58,6 +59,7 @@ unsafe extern "C" {
     pub(crate) fn tmpfile() -> *mut LibcFile;
     pub(crate) fn fscanf(stream: *mut LibcFile, format: *const u8, ...) -> i32;
     pub(crate) fn fprintf(stream: *mut LibcFile, format: *const u8, ...) -> i32;
+
     pub(crate) fn strlen(s: *const u8) -> usize;
 
     // Number parsing / locale

@@ -56,9 +56,10 @@ it to a project is `rilua = "0.1"` in Cargo.toml -- no C compiler, no
 system libraries, no `pkg-config`, no vendored C source. mlua pulls in
 7+ runtime crates plus the C Lua source.
 
-**No unsafe in the core.** The VM, garbage collector, compiler, and all
-standard libraries contain zero `unsafe` blocks. All FFI is isolated in
-`platform.rs`. The arena-based GC uses generational indices (`GcRef<T>` =
+**Safe memory model.** The garbage collector, compiler, and VM data
+structures contain zero `unsafe` blocks. `unsafe` is confined to libc FFI
+calls (declared in `platform.rs`) and `dynmod` module loading. The arena-based
+GC uses generational indices (`GcRef<T>` =
 two `u32`s) with validation on every access -- stale references return
 errors, not corrupted memory. mlua acknowledges containing "a huge amount
 of unsafe code" to bridge C's `longjmp` and Rust's ownership model.
@@ -247,7 +248,7 @@ Arena-based incremental mark-sweep with generational indices:
 ### Platform Support
 
 rilua compiles for Linux, macOS, Windows, and `wasm32-unknown-unknown`.
-All C FFI is centralized in `src/platform.rs` with pure-Rust stubs on
+All C FFI declarations are centralized in `src/platform.rs` with pure-Rust stubs on
 WASM. Core VM, compiler, and computational libraries (base, string,
 table, math, coroutine, debug) work on all platforms. I/O and OS
 libraries require a filesystem and return errors on WASM.

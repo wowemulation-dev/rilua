@@ -131,8 +131,10 @@ src/
 
 ## Platform Support
 
-All C FFI is centralized in `src/platform.rs`. See [wasm.md](wasm.md)
-for WASM-specific stubs and library availability.
+All C FFI declarations are centralized in `src/platform.rs`. FFI call
+sites appear in the VM dispatch loop (`execute.rs`) and the
+`io`/`os`/`string` libraries. See [wasm.md](wasm.md) for WASM-specific
+stubs and library availability.
 
 Supported targets:
 
