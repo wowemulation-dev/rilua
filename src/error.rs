@@ -6,7 +6,7 @@
 //! - `LUA_ERRMEM` (4) — memory allocation error
 //! - `LUA_ERRERR` (5) — error in error handler
 
-use std::fmt;
+use std::{borrow::Cow, fmt};
 
 /// Result type alias used throughout rilua.
 pub type LuaResult<T> = Result<T, LuaError>;
@@ -176,31 +176,31 @@ const LUA_IDSIZE: usize = 60;
 /// - `"=name"` -> `"name"` (literal, truncated to `LUA_IDSIZE`)
 /// - `"@filename"` -> `"filename"` (file, with `"..."` prefix if too long)
 /// - other -> `[string "first_line..."]`
-pub fn chunkid(source: &str) -> String {
+pub fn chunkid<'a>(source: &'a str) -> Cow<'a, str> {
     if let Some(rest) = source.strip_prefix('=') {
         // Literal name -- strip the '=' prefix.
         if rest.len() < LUA_IDSIZE {
-            rest.to_string()
+            rest.into()
         } else {
-            rest[..LUA_IDSIZE - 1].to_string()
+            rest[..LUA_IDSIZE - 1].into()
         }
     } else if let Some(rest) = source.strip_prefix('@') {
         // File name.
         if rest.len() < LUA_IDSIZE {
-            rest.to_string()
+            rest.into()
         } else {
             let skip = rest.len() - (LUA_IDSIZE - 4);
-            format!("...{}", &rest[skip..])
+            format!("...{}", &rest[skip..]).into()
         }
     } else {
         // String source.
         let first_line = source.split('\n').next().unwrap_or(source);
         let max_len = LUA_IDSIZE - "[string \"...\"]".len();
         if first_line.len() <= max_len && !source.contains('\n') {
-            format!("[string \"{first_line}\"]")
+            format!("[string \"{first_line}\"]").into()
         } else {
             let truncated = &first_line[..first_line.len().min(max_len)];
-            format!("[string \"{truncated}...\"]")
+            format!("[string \"{truncated}...\"]").into()
         }
     }
 }
