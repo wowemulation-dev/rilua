@@ -6,8 +6,8 @@ in the browser or other WebAssembly runtimes.
 ## How It Works
 
 When targeting `wasm32`, `src/platform.rs` swaps every `extern "C"`
-function for a pure-Rust stub. Only the platform layer changes; the
-VM, compiler, and core standard libraries are unmodified.
+function for a pure-Rust stub. The VM, compiler, and core standard libraries stay unchanged.
+Only the platform layer changes.
 
 ```text
 platform.rs
@@ -38,8 +38,8 @@ platform.rs
 ### Locale Differences
 
 On native platforms, rilua uses `strtod` and `localeconv` for
-locale-aware number parsing (matching PUC-Rio behavior where `3,14`
-parses as a number in locales using comma as decimal separator).
+locale-aware number parsing. This matches PUC-Rio behavior. In some
+locales, `3,14` parses as a number.
 
 On WASM, number parsing is ASCII-only with `.` as the decimal point.
 This matches the `"C"` locale and is correct for all standard Lua
@@ -144,7 +144,7 @@ captured output after execution.
 | Feature | WASM Behavior |
 |---------|---------------|
 | `dynmod` | Disabled (no shared library loading on WASM) |
-| `send` | Works (GcRef indices are just u32 values) |
+| `send` | Works (GcRef indices are u32 values) |
 | SIGINT | No-op (no signal handling on WASM) |
 
 ## Limitations

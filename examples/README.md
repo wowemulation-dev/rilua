@@ -8,7 +8,7 @@ Runs a Lua file passed as a command-line argument.
 cargo run --example run_file -- examples/hello.lua
 ```
 
-This demonstrates the minimal embedding API:
+This shows the minimal embedding API:
 
 1. `Lua::new()` creates a state with all standard libraries loaded
 2. `Lua::exec_file(path)` reads, compiles, and executes a Lua file
@@ -16,7 +16,7 @@ This demonstrates the minimal embedding API:
 
 ## advanced_embedding
 
-Demonstrates advanced embedding patterns for Rust applications.
+Shows advanced embedding patterns for Rust applications.
 
 ```bash
 cargo run --example advanced_embedding

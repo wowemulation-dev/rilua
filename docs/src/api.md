@@ -10,7 +10,7 @@
 PUC-Rio Lua exposes a stack-based C API where values are pushed and
 popped from a virtual stack. This works well in C but is unergonomic
 in Rust -- it lacks type safety, requires manual stack management,
-and does not leverage Rust's trait system. rilua uses traits for type
+and does not use Rust's trait system. rilua uses traits for type
 conversion, methods for common operations, and the type system for
 safety instead.
 
@@ -115,7 +115,7 @@ impl Lua {
         &mut self, data: T, type_name: &str,
     ) -> LuaResult<AnyUserData> { ... }
 
-    /// Create or retrieve a named metatable for a userdata type.
+    /// Create or get a named metatable for a userdata type.
     pub fn create_userdata_metatable(
         &mut self, type_name: &str,
     ) -> LuaResult<Table> { ... }
@@ -503,7 +503,7 @@ closures.
 ### Reference System
 
 The reference system provides a way to store Lua values in a table
-(typically the registry) and retrieve them later by integer handle.
+(typically the registry) and get them later by integer handle.
 It is a free-list allocator using integer keys:
 
 - `ref(table)` pops a value from the stack, stores it at an integer

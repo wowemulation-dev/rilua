@@ -66,8 +66,8 @@ in [elune](https://github.com/Meorawr/elune)'s implementation.
 ### Addon compatibility testing
 
 Automated verification that addons behave correctly. A test harness
-loads addons via their TOC manifests and runs them against a mock WoW
-environment, checking for:
+loads addons via their TOC manifests. It runs them against a mock WoW
+environment. Check for:
 
 - Runtime errors
 - Taint violations
@@ -107,7 +107,7 @@ implementation.
 
 ### Educational use
 
-rilua demonstrates language implementation techniques in a real
+rilua shows language implementation techniques in a real
 project:
 
 - Lexing and tokenization

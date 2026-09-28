@@ -81,10 +81,10 @@ Emscripten toolchain) because it links C source that depends on libc.
 
 **Rust-native modules instead of C modules.** With the `dynmod` feature,
 `package.loadlib` loads Rust `cdylib` crates compiled against rilua's
-ABI. Module authors write Rust, not C. The host validates a
-`RiluaModuleInfo` struct for version compatibility and wraps entry point
-calls in `catch_unwind` to convert panics to Lua errors. No raw pointer
-juggling, no manual stack discipline.
+ABI. Module authors write Rust, not C. The host validates the
+`RiluaModuleInfo` struct for version compatibility. It wraps entry point
+calls in `catch_unwind` to convert panics to Lua errors. There is no
+raw pointer juggling. There is no manual stack discipline.
 
 **Send without mutex overhead.** rilua's `send` feature makes `Lua: Send`
 by observing that `GcRef` values are `u32` indices -- trivially `Send`.
@@ -98,7 +98,7 @@ can't outlive the borrow of the Lua state.
 
 **Performance.** rilua is ~1.7x slower than PUC-Rio on the official test
 suite (measured on AMD Ryzen 7 8840U, release mode, median of 10 runs).
-For workloads where Lua execution is a fraction of total runtime
+For workloads where Lua execution is a small fraction of total runtime
 (configuration, scripting hooks, game logic), this overhead is not
 noticeable.
 

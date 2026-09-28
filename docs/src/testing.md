@@ -215,10 +215,10 @@ runtime environment before running each test:
 rilua does **not** run `all.lua` directly. Instead, each test file
 is executed individually using two approaches:
 
-**Important**: Tests must be run from the `lua-5.1-tests/` directory.
-Several tests depend on relative paths: `attrib.lua` creates files
-in `libs/`, `math.lua` and `verybig.lua` require `checktable.lua`
-via `LUA_PATH`, and file tests reference paths relative to the test
+**Important**: Run tests from the `lua-5.1-tests/` directory.
+Several tests depend on relative paths. `attrib.lua` creates files
+in `libs/`. `math.lua` and `verybig.lua` require `checktable.lua`
+via `LUA_PATH`. File tests reference paths relative to the test
 directory. Running from the project root will cause false failures.
 
 **Individual file execution** (primary):

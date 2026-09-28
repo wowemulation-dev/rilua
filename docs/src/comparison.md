@@ -50,8 +50,8 @@ mlua is not a Lua implementation. It is a Rust binding layer over
 PUC-Rio's C implementation (or LuaJIT, or Luau). The actual Lua
 execution happens in C/C++ code linked via FFI.
 
-Every C API call that can trigger a Lua error is wrapped in
-`lua_pcall` to prevent `longjmp` from unwinding Rust stack frames.
+mlua wraps every C API call that can trigger a Lua error in
+`lua_pcall`. This prevents `longjmp` from unwinding Rust stack frames.
 The library states it contains "a huge amount of unsafe code" to
 bridge the C/Rust boundary. Users do not write `unsafe` in normal
 usage, but the FFI boundary is inherently fragile.
