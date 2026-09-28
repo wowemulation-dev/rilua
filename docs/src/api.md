@@ -273,10 +273,10 @@ impl Table {
 ```
 
 Note: Table handle methods take `&LuaState` (the internal VM state),
-not `&Lua`. This is because handles are used both from the public API
-and from stdlib internals. Use `lua.state()` / `lua.state_mut()` (which
-are `pub(crate)`) to get the state reference, or use
-`Lua::table_raw_set()` for the public-facing convenience method.
+not `&Lua`. Handles serve both the public API and stdlib internals.
+Use `lua.state()` / `lua.state_mut()` (which are `pub(crate)`) to get
+the state reference, or use `Lua::table_raw_set()` for the public-facing
+convenience method.
 
 ### Function
 

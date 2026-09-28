@@ -28,7 +28,7 @@ Zero external dependencies -- only Rust's standard library.
 
 ### Use Cases
 
-rilua is built for the World of Warcraft emulation ecosystem:
+rilua targets the World of Warcraft emulation ecosystem:
 
 - **Addon development and testing** -- Run and test WoW addons outside the
   game client without launching WoW
@@ -67,7 +67,7 @@ of unsafe code" to bridge C's `longjmp` and Rust's ownership model.
 **Errors preserve the call stack.** PUC-Rio uses `setjmp`/`longjmp` for
 error handling, which unwinds the C stack before any handler runs. rilua
 propagates errors as `Result<T, LuaError>`. The CallInfo chain remains
-intact after an error, so tracebacks are generated from the live stack.
+intact after an error. You can generate tracebacks from the live stack.
 RAII destructors fire normally -- no leaked resources in embeddings.
 
 **Structured error types.** Rust code gets `LuaError::Syntax` with
@@ -92,8 +92,8 @@ mlua's `send` feature wraps the entire VM in a reentrant mutex, adding
 per-operation lock overhead even in single-threaded use.
 
 **GcRef handles are Copy with no lifetimes.** Store them in structs,
-put them in HashMaps, pass them freely. Validity is checked at access
-time via generation counter. mlua handles carry a `'lua` lifetime and
+put them in HashMaps, pass them freely. A generation counter checks
+validity at access time. mlua handles carry a `'lua` lifetime and
 can't outlive the borrow of the Lua state.
 
 **Performance.** rilua is ~1.7x slower than PUC-Rio on the official test
@@ -182,7 +182,7 @@ See `docs/src/api.md` for the full API reference.
 
 ### Language
 
-All Lua 5.1.1 language features are implemented:
+rilua implements all Lua 5.1.1 language features:
 
 - Variables, assignments, local declarations
 - Control flow: `if`/`elseif`/`else`, `while`, `repeat`/`until`, numeric

@@ -61,7 +61,7 @@ all arguments on success.
 **`error(message [, level])`** — level 0 means no position prefix.
 Level 1 (default) prefixes with the current function's location.
 Level 2 uses the caller's location, etc. If message is not a string,
-no position prefix is added.
+do not add a position prefix.
 
 **`getfenv(f)`** — `f` can be a function or a number (stack level).
 Level 0 returns the thread environment. Level 1 (default) returns
@@ -329,7 +329,8 @@ is empty"` if the range is invalid. Uses C `rand()` equivalent
 must be convertible to integer.
 
 **`math.min(...)` / `math.max(...)`** — requires at least 1 argument.
-NaN asymmetry: if NaN is the first argument, it is returned. If NaN
+NaN asymmetry: return NaN if it appears first. Skip NaN that
+appears later (since `NaN < x` and `NaN > x` are both false).
 appears later, it is skipped (since `NaN < x` and `NaN > x` are
 both false).
 
@@ -433,8 +434,8 @@ PUC-Rio Lua's `package.loadlib` loads C modules via `lua_CFunction`
 
 Instead, rilua defines its own native module ABI. Modules are Rust
 `cdylib` crates compiled against the same rilua version and `rustc`
-version as the host. This is gated behind the `dynmod` Cargo feature
-(default off). Without the feature, `package.loadlib` returns
+version as the host. Gate this behavior behind the `dynmod` Cargo
+feature (default off). Without the feature, `package.loadlib` returns
 `(nil, msg, "absent")`.
 
 When `dynmod` is enabled:
@@ -452,7 +453,7 @@ for a working example.
 
 ## Loading
 
-Libraries are loaded via `Lua::new()` (all standard libraries) or
+Load libraries via `Lua::new()` (all standard libraries) or
 selectively via `Lua::new_with(StdLib)`.
 
 Mirrored at [`examples/selective_stdlib.rs`](../../examples/selective_stdlib.rs).
