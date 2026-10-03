@@ -8,6 +8,18 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.27](https://github.com/wowemulation-dev/rilua/compare/v0.1.26...v0.1.27) - 2026-10-03
+
+### Fixed
+
+- *(vm)* single bounds check for instruction fetch (PUC-Rio match)
+- *(platform)* only link ucrt on MSVC, not MinGW
+- *(platform)* use 64-bit fseek/ftell/mktime on Windows
+
+### Fmt
+
+- fix indentation on cfg_attr link directives
+
 ## [0.1.26](https://github.com/wowemulation-dev/rilua/compare/v0.1.25...v0.1.26) - 2026-10-03
 
 ### Fixed
