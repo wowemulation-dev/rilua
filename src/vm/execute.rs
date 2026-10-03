@@ -1169,16 +1169,16 @@ pub fn execute(state: &mut LuaState) -> LuaResult<()> {
 
         // Inner dispatch loop for this frame.
         loop {
-            if pc >= proto.code.len() {
-                return Err(runtime_error(&proto, pc, "bytecode overrun"));
-            }
-
-            // Read instruction and advance pc BEFORE hook check.
+            // Read instruction and advance pc BEFORE hook check (one bounds
+            // check for both the overrun test and the fetch).
             // PUC-Rio: `const Instruction i = *pc++;` then traceexec(L, pc).
             // After this, pc points one past the instruction being executed,
             // matching PUC-Rio's convention where pcRel(pc, p) = (pc - code) - 1
             // gives the current instruction's index.
-            let instr = Instruction::from_raw(proto.code[pc]);
+            let Some(&raw_instr) = proto.code.get(pc) else {
+                return Err(runtime_error(&proto, pc, "bytecode overrun"));
+            };
+            let instr = Instruction::from_raw(raw_instr);
             pc += 1;
 
             // Interrupt check: abort if the embedder's signal handler set the flag.
