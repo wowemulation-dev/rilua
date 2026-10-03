@@ -48,7 +48,9 @@ unsafe extern "C" {
     pub(crate) fn fwrite(ptr: *const u8, size: usize, nmemb: usize, stream: *mut LibcFile)
     -> usize;
     pub(crate) fn fgets(s: *mut u8, n: i32, stream: *mut LibcFile) -> *mut u8;
+    #[cfg_attr(target_os = "windows", link_name = "_fseeki64")]
     pub(crate) fn fseek(stream: *mut LibcFile, offset: i64, whence: i32) -> i32;
+    #[cfg_attr(target_os = "windows", link_name = "_ftelli64")]
     pub(crate) fn ftell(stream: *mut LibcFile) -> i64;
     pub(crate) fn ferror(stream: *mut LibcFile) -> i32;
     pub(crate) fn clearerr(stream: *mut LibcFile);
@@ -71,6 +73,9 @@ unsafe extern "C" {
     // Time functions (clock, mktime, strftime, setlocale still need FFI;
     // time(NULL) replaced by current_time() using SystemTime)
     pub(crate) fn clock() -> ClockT;
+    // `TimeT` is 64-bit; on Windows `mktime` is a header inline (MSVC) or
+    // 32-bit (msvcrt), so bind the explicit 64-bit entry point.
+    #[cfg_attr(target_os = "windows", link_name = "_mktime64")]
     pub(crate) fn mktime(tm: *mut Tm) -> TimeT;
     pub(crate) fn strftime(s: *mut u8, max: usize, format: *const u8, tm: *const Tm) -> usize;
     pub(crate) fn setlocale(category: i32, locale: *const u8) -> *const u8;
@@ -568,7 +573,7 @@ unsafe extern "C" {
 
 #[cfg(target_os = "windows")]
 #[allow(unsafe_code)]
-#[link(name = "ucrt")]
+#[cfg_attr(target_env = "msvc", link(name = "ucrt"))]
 unsafe extern "C" {
     fn __acrt_iob_func(index: u32) -> *mut LibcFile;
 }
@@ -646,7 +651,7 @@ unsafe extern "C" {
 
 #[cfg(target_os = "windows")]
 #[allow(unsafe_code)]
-#[link(name = "ucrt")]
+#[cfg_attr(target_env = "msvc", link(name = "ucrt"))]
 unsafe extern "C" {
     #[link_name = "_popen"]
     fn popen(command: *const u8, r#type: *const u8) -> *mut LibcFile;
@@ -695,7 +700,7 @@ unsafe extern "C" {
 
 #[cfg(target_os = "windows")]
 #[allow(unsafe_code)]
-#[link(name = "ucrt")]
+#[cfg_attr(target_env = "msvc", link(name = "ucrt"))]
 unsafe extern "C" {
     // Windows reverses parameter order and returns errno_t.
     // On 64-bit MSVC, `localtime_s`/`gmtime_s` are header-level wrappers
