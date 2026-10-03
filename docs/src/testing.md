@@ -56,15 +56,14 @@ isolation. Every implementation chunk includes unit tests.
 
 Oracle comparison tests run the same Lua code in both rilua and
 PUC-Rio Lua 5.1.1, comparing output to verify behavioral equivalence.
-This catches divergences that unit tests and integration tests might
-miss.
+Unit tests and integration tests might not catch these divergences.
 
 #### Reference Binaries
 
 - **lua** (interpreter): `./lua-5.1.1/src/lua`
 - **luac** (compiler/lister): `./lua-5.1.1/src/luac`
 
-Both are built from the official PUC-Rio Lua 5.1.1 tarball. See
+You build both from the official PUC-Rio Lua 5.1.1 tarball. See
 `AGENTS.md` for download, verification, and build instructions.
 
 Set the `lua` binary path with the `LUA_REFERENCE_BIN`
@@ -342,7 +341,7 @@ requirements beyond individual file execution).
 **Compatibility flags**: The PUC-Rio test suite was written with
 default compat options enabled (e.g., `LUA_COMPAT_VARARG` enables
 the `arg` table in vararg functions). WoW's Lua disables some of
-these. Tests that depend on compat options may need conditional
+these. Compat options affect some tests. These tests need conditional
 handling.
 
 ### Layer 5: Behavioral Equivalence Tests
@@ -379,8 +378,7 @@ Implement new features test-first where possible:
 5. Run the oracle comparison to verify matching output.
 6. Run the full test suite to check for regressions.
 
-This ensures every feature is validated against the reference
-implementation.
+You validate every feature against the reference implementation.
 
 ### Quality Gate
 

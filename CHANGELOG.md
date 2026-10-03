@@ -1,8 +1,8 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+This file documents all notable changes to this project.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+This project uses the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format,
 and this project adheres to
 [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
@@ -125,8 +125,8 @@ and this project adheres to
 - Fix hash chain corruption when inserting keys into tables with GC-swept
   nil-valued entries. After GC sweeps key strings, stale GcRefs caused
   `main_position` to return incorrect buckets, corrupting hash chains via
-  Brent's Case A relocation. Detected as globals (e.g. `assert`) becoming
-  nil when running multiple test files sequentially.
+  Brent's Case A relocation. Globals such as `assert` became nil.
+  GC swept key strings between test files.
 
 ### Added
 

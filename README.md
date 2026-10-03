@@ -51,18 +51,18 @@ rilua differs from binding-based approaches like
 [mlua](https://github.com/mlua-rs/mlua) (which wraps PUC-Rio's C
 implementation via FFI) in several ways that matter for embedding:
 
-**No C toolchain required.** rilua has zero external dependencies. Adding
-it to a project is `rilua = "0.1"` in Cargo.toml -- no C compiler, no
-system libraries, no `pkg-config`, no vendored C source. mlua pulls in
+**You do not need a C toolchain.** rilua has zero external dependencies.
+Add it to a project with `rilua = "0.1"` in Cargo.toml. You do not need a
+C compiler, system libraries, `pkg-config`, or vendored C source. mlua pulls in
 7+ runtime crates plus the C Lua source.
 
-**Safe memory model.** The garbage collector, compiler, and VM data
-structures contain zero `unsafe` blocks. `unsafe` is confined to libc FFI
-calls (declared in `platform.rs`) and `dynmod` module loading. The arena-based
-GC uses generational indices (`GcRef<T>` =
-two `u32`s) with validation on every access -- stale references return
-errors, not corrupted memory. mlua acknowledges containing "a huge amount
-of unsafe code" to bridge C's `longjmp` and Rust's ownership model.
+**Correctness-first memory model.** The garbage collector, compiler, and VM
+data structures contain zero `unsafe` blocks. `unsafe` is confined to libc
+FFI calls (declared in `platform.rs`) and `dynmod` module loading. The
+arena-based GC uses generational indices (`GcRef<T>` = two `u32`s) with
+validation on every access. Stale references return errors, not corrupted
+memory. mlua acknowledges containing "a huge amount of unsafe code". That
+code bridges C's `longjmp` and Rust's ownership model.
 
 **Errors preserve the call stack.** PUC-Rio uses `setjmp`/`longjmp` for
 error handling, which unwinds the C stack before any handler runs. rilua
@@ -83,8 +83,8 @@ Emscripten toolchain) because it links C source that depends on libc.
 `package.loadlib` loads Rust `cdylib` crates compiled against rilua's
 ABI. Module authors write Rust, not C. The host validates the
 `RiluaModuleInfo` struct for version compatibility. It wraps entry point
-calls in `catch_unwind` to convert panics to Lua errors. There is no
-raw pointer juggling. There is no manual stack discipline.
+calls in `catch_unwind` to convert panics to Lua errors.
+Code does not use raw pointer juggling. Code does not manage the stack by hand.
 
 **Send without mutex overhead.** rilua's `send` feature makes `Lua: Send`
 by observing that `GcRef` values are `u32` indices -- trivially `Send`.
@@ -96,7 +96,7 @@ put them in HashMaps, pass them freely. A generation counter checks
 validity at access time. mlua handles carry a `'lua` lifetime and
 can't outlive the borrow of the Lua state.
 
-**Performance.** rilua is ~1.7x slower than PUC-Rio on the official test
+**Performance.** rilua runs about 1.7 times slower than PUC-Rio on the
 suite (measured on AMD Ryzen 7 8840U, release mode, median of 10 runs).
 For workloads where Lua execution is a small fraction of total runtime
 (configuration, scripting hooks, game logic), this overhead is not
@@ -151,7 +151,8 @@ riluac -l -l script.lua
 riluac -p script.lua
 ```
 
-Binary chunks are cross-compatible with PUC-Rio in both directions.
+PUC-Rio loads binary chunks from rilua, and rilua loads binary chunks from
+PUC-Rio.
 
 ### Embedding in Rust
 
