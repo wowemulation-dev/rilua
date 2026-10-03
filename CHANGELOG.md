@@ -8,6 +8,24 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.26](https://github.com/wowemulation-dev/rilua/compare/v0.1.25...v0.1.26) - 2026-10-03
+
+### Fixed
+
+- *(gc)* disable debug hooks during __gc finalizers (PUC-Rio compat)
+- *(string)* clamp init to string length in find/match (PUC-Rio compat)
+- *(vm)* prefix builtin function errors with caller location (PUC-Rio compat)
+- *(debug)* simplify stack level 0 handling to match PUC-Rio
+- *(error)* byte-exact port of PUC-Rio's luaO_chunkid for source IDs
+- *(parser)* reject '...' outside vararg functions (PUC-Rio compat)
+- *(lexer)* reject nested [[...]] at level 0 (PUC-Rio compat)
+- *(lexer)* accept unknown escapes as themselves and improve error messages
+- *(codegen)* use explicit modulo formula matching PUC-Rio semantics
+
+### Fmt
+
+- apply cargo formatting to PUC-Rio correctness fixes
+
 ## [0.1.25](https://github.com/wowemulation-dev/rilua/compare/v0.1.24...v0.1.25) - 2026-10-03
 
 ### Performance
