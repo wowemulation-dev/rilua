@@ -897,6 +897,17 @@ fn string_find_not_found() {
 }
 
 #[test]
+fn string_init_clamped_to_length() {
+    // PUC-Rio: init beyond string length is clamped to len (avoids underflow).
+    let (stdout, _, code) = run_rilua("print(string.find('hi', 'x', -100))");
+    assert_eq!(code, 0);
+    assert_eq!(stdout, "nil\n");
+    let (stdout, _, code) = run_rilua("print(string.match('ab', 'a', -50))");
+    assert_eq!(code, 0);
+    assert_eq!(stdout, "a\n");
+}
+
+#[test]
 fn string_match_captures() {
     let (stdout, _, code) = run_rilua("print(string.match('2024-01-15', '(%d+)-(%d+)-(%d+)'))");
     assert_eq!(code, 0);

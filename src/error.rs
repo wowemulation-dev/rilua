@@ -177,30 +177,35 @@ const LUA_IDSIZE: usize = 60;
 /// - `"@filename"` -> `"filename"` (file, with `"..."` prefix if too long)
 /// - other -> `[string "first_line..."]`
 pub fn chunkid(source: &str) -> String {
-    if let Some(rest) = source.strip_prefix('=') {
-        // Literal name -- strip the '=' prefix.
-        if rest.len() < LUA_IDSIZE {
-            rest.to_string()
+    // Byte-exact port of `luaO_chunkid` (lobject.c, Lua 5.1.4) with
+    // `bufflen == LUA_IDSIZE`.
+    let src = source.as_bytes();
+    let lossy = |b: &[u8]| String::from_utf8_lossy(b).into_owned();
+    if let Some(rest) = src.strip_prefix(b"=") {
+        // strncpy(out, source+1, bufflen); out[bufflen-1] = '\0';
+        let n = rest.len().min(LUA_IDSIZE - 1);
+        lossy(&rest[..n])
+    } else if let Some(rest) = src.strip_prefix(b"@") {
+        // bufflen -= sizeof(" '...' ");
+        let bufflen = LUA_IDSIZE - " '...' ".len() - 1;
+        if rest.len() > bufflen {
+            format!("...{}", lossy(&rest[rest.len() - bufflen..]))
         } else {
-            rest[..LUA_IDSIZE - 1].to_string()
-        }
-    } else if let Some(rest) = source.strip_prefix('@') {
-        // File name.
-        if rest.len() < LUA_IDSIZE {
-            rest.to_string()
-        } else {
-            let skip = rest.len() - (LUA_IDSIZE - 4);
-            format!("...{}", &rest[skip..])
+            lossy(rest)
         }
     } else {
-        // String source.
-        let first_line = source.split('\n').next().unwrap_or(source);
-        let max_len = LUA_IDSIZE - "[string \"...\"]".len();
-        if first_line.len() <= max_len && !source.contains('\n') {
-            format!("[string \"{first_line}\"]")
+        // bufflen -= sizeof(" [string \"...\"] ");
+        let bufflen = LUA_IDSIZE - " [string \"...\"] ".len() - 1;
+        let mut len = src.len().min(bufflen);
+        if let Some(nl) = src.iter().position(|&c| c == b'\n')
+            && len > nl
+        {
+            len = nl;
+        }
+        if len < src.len() {
+            format!("[string \"{}...\"]", lossy(&src[..len]))
         } else {
-            let truncated = &first_line[..first_line.len().min(max_len)];
-            format!("[string \"{truncated}...\"]")
+            format!("[string \"{}\"]", lossy(src))
         }
     }
 }
@@ -366,5 +371,41 @@ mod tests {
     fn error_is_std_error() {
         let err = LuaError::Memory;
         let _: &dyn std::error::Error = &err;
+    }
+
+    #[test]
+    fn chunkid_literal() {
+        assert_eq!(chunkid("=name"), "name");
+        // Truncate to LUA_IDSIZE-1
+        let long = "a".repeat(100);
+        let cid = chunkid(&format!("={long}"));
+        assert_eq!(cid.len(), LUA_IDSIZE - 1);
+    }
+
+    #[test]
+    fn chunkid_file_truncation() {
+        // Short filename: no truncation
+        assert_eq!(chunkid("@short.lua"), "short.lua");
+        // Long filename: show tail with "..." prefix
+        let long = "/very/long/path/to/a/file/that/exceeds/the/buffer/limit.lua";
+        let cid = chunkid(&format!("@{long}"));
+        assert!(cid.starts_with("..."));
+    }
+
+    #[test]
+    fn chunkid_string_source() {
+        // Short string: no truncation
+        assert_eq!(chunkid("x + y"), r#"[string "x + y"]"#);
+        // Long string: truncate with "..."
+        let long_line = "a".repeat(100);
+        let cid = chunkid(&long_line);
+        assert!(cid.contains("..."));
+    }
+
+    #[test]
+    fn chunkid_multiline_string() {
+        // Multiline strings should truncate at first newline
+        let cid = chunkid("line1\nline2");
+        assert_eq!(cid, r#"[string "line1..."]"#);
     }
 }

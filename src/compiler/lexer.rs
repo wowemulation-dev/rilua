@@ -254,6 +254,15 @@ impl<'a> Lexer<'a> {
         })
     }
 
+    /// Text of a string token read so far (opening delimiter + contents), as
+    /// PUC-Rio's `txtToken` shows it in "near '...'" messages.
+    fn partial_string(delimiter: u8, buf: &[u8]) -> String {
+        let mut v = Vec::with_capacity(buf.len() + 1);
+        v.push(delimiter);
+        v.extend_from_slice(buf);
+        String::from_utf8_lossy(&v).into_owned()
+    }
+
     fn syntax_error_near(&self, msg: &str, near: &str) -> LuaError {
         LuaError::Syntax(SyntaxError {
             message: format!("{msg} near '{near}'"),
@@ -615,7 +624,9 @@ impl<'a> Lexer<'a> {
                     return Err(self.syntax_error_near("unfinished string", "<eof>"));
                 }
                 Some(b'\n') | Some(b'\r') => {
-                    return Err(self.syntax_error_near("unfinished string", "<string>"));
+                    // PUC-Rio quotes the string read so far (txtToken).
+                    let near = Self::partial_string(delimiter, &buf);
+                    return Err(self.syntax_error_near("unfinished string", &near));
                 }
                 Some(c) if c == delimiter => {
                     self.advance(); // consume closing delimiter
@@ -684,17 +695,19 @@ impl<'a> Lexer<'a> {
                                 }
                             }
                             if val > 255 {
+                                let near = Self::partial_string(delimiter, &buf);
                                 return Err(
-                                    self.syntax_error_near("escape sequence too large", "<string>")
+                                    self.syntax_error_near("escape sequence too large", &near)
                                 );
                             }
                             buf.push(val as u8);
                         }
                         Some(c) => {
-                            return Err(self.syntax_error_near(
-                                &format!("invalid escape sequence '\\{}'", char::from(c)),
-                                "<string>",
-                            ));
+                            // Lua 5.1 (llex.c read_string): any other escaped
+                            // character stands for itself ("\A" is "A",
+                            // "\?" is "?"); only Lua 5.2+ rejects them.
+                            self.advance();
+                            buf.push(c);
                         }
                         None => {
                             return Err(self.syntax_error_near("unfinished string", "<eof>"));
@@ -762,6 +775,11 @@ impl<'a> Lexer<'a> {
                 Some(b'\n') | Some(b'\r') => {
                     buf.push(b'\n'); // normalize all newlines to \n
                     self.inc_line();
+                }
+                Some(b'[') if sep == 0 && self.peek_ahead(1) == Some(b'[') => {
+                    // PUC-Rio 5.1 llex.c (LUA_COMPAT_LSTR == 1): "[[" inside
+                    // a level-0 long string or comment is an error.
+                    return Err(self.syntax_error_near("nesting of [[...]] is deprecated", "["));
                 }
                 Some(b']') => {
                     if self.check_closing_long_bracket(sep) {
@@ -1198,8 +1216,18 @@ mod tests {
     }
 
     #[test]
-    fn invalid_escape() {
-        assert!(lex_tokens(r#""\z""#).is_err());
+    fn unknown_escape_is_the_char_itself() {
+        // Lua 5.1: "\z" is "z", "\A" is "A" (only Lua 5.2+ rejects them).
+        let tokens = lex_tokens(r#""\z" "C:\Apps""#).unwrap();
+        assert_eq!(tokens[0], Token::Str(b"z".to_vec()));
+        assert_eq!(tokens[1], Token::Str(b"C:Apps".to_vec()));
+    }
+
+    #[test]
+    fn nested_long_bracket_is_an_error() {
+        assert!(lex_tokens("[[a [[b]]").is_err());
+        assert!(lex_tokens("--[[a [[b]] x").is_err());
+        assert!(lex_tokens("[=[a [[b]=]").is_ok());
     }
 
     // -- Reader-based lexer tests --

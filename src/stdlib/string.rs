@@ -1450,7 +1450,9 @@ pub fn str_find(state: &mut LuaState) -> LuaResult<u32> {
     let plain_val = arg(state, 3);
 
     let init = state.opt_integer(3, 1).map(|i| posrelat(i, s.len()))?;
-    let init = (init.max(1) as usize).saturating_sub(1); // Convert to 0-based.
+    // Convert to 0-based and clamp to the subject length (PUC-Rio str_find_aux:
+    // `else if ((size_t)(init) > l1) init = (ptrdiff_t)l1;`).
+    let init = ((init.max(1) as usize).saturating_sub(1)).min(s.len());
     let plain = plain_val.is_truthy();
 
     if plain {
@@ -1547,7 +1549,7 @@ pub fn str_match(state: &mut LuaState) -> LuaResult<u32> {
 
     let init_raw = state.opt_integer(3, 1)?;
     let init = posrelat(init_raw, s.len());
-    let init = (init.max(1) as usize).saturating_sub(1);
+    let init = ((init.max(1) as usize).saturating_sub(1)).min(s.len()); // clamp like PUC-Rio
 
     let anchor = !pat.is_empty() && pat[0] == b'^';
     let pat_start = usize::from(anchor);

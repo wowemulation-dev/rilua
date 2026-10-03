@@ -1462,7 +1462,11 @@ impl LuaState {
         let base = self.top;
         self.push(gc_fn);
         self.push(Val::Userdata(ud_ref));
+        // PUC-Rio GCTM: stop debug hooks during GC tag methods.
+        let old_allow_hook = self.hook.allow_hook;
+        self.hook.allow_hook = false;
         let result = self.call_function(base, 0);
+        self.hook.allow_hook = old_allow_hook;
         if result.is_err() {
             self.ci = saved_ci;
             self.base = self.call_stack[saved_ci].base;
