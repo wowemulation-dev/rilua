@@ -1407,6 +1407,7 @@ impl Compiler {
                 if v2 == 0.0 {
                     return false;
                 }
+                // PUC-Rio uses explicit arithmetic; mul_add can differ on some FPUs.
                 v1 - (v1 / v2).floor() * v2
             }
             OpCode::Pow => v1.powf(v2),

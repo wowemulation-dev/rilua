@@ -696,7 +696,9 @@ impl<'a> Lexer<'a> {
                             }
                             if val > 255 {
                                 let near = Self::partial_string(delimiter, &buf);
-                                return Err(self.syntax_error_near("escape sequence too large", &near));
+                                return Err(
+                                    self.syntax_error_near("escape sequence too large", &near)
+                                );
                             }
                             buf.push(val as u8);
                         }

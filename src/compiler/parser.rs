@@ -834,7 +834,9 @@ impl<'a> Parser<'a> {
                 // PUC-Rio lparser.c simpleexp: check_condition(ls,
                 // fs->f->is_vararg, "cannot use '...' outside a vararg function")
                 if !self.func_scopes.last().is_none_or(|f| f.is_vararg) {
-                    return Err(self.syntax_error_near("cannot use '...' outside a vararg function"));
+                    return Err(
+                        self.syntax_error_near("cannot use '...' outside a vararg function")
+                    );
                 }
                 self.advance()?;
                 Ok(Expr::VarArg(span))
