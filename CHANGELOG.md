@@ -8,6 +8,24 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Performance
+
+- optimize string library pattern matching — reuse `MatchState` across
+  iterations, add ASCII-only fast path for character classes (`%l`, `%u`,
+  `%a`, `%d`, `%w`, `%x`, `%c`, `%s`, `%p`) avoiding libc FFI overhead
+- optimize `format_with_spec` — parse format specs using byte indices
+  instead of allocating a `String`/`Vec<char>` for every call
+
+### Testing
+
+- add string library benchmarks (find, gsub, match, gmatch, format variants)
+- add call overhead benchmarks (regular/tail calls, metamethod dispatch, C functions, nesting)
+- add regression tests for `%l`/`%u` case sensitivity and `%c`/`%p` character classes
+
+### Performance
+
+- reduce PUC-Rio test suite baseline from 2630ms to 1891ms (~28% improvement)
+
 ## [0.1.24](https://github.com/wowemulation-dev/rilua/compare/v0.1.23...v0.1.24) - 2026-08-24
 
 ### Testing

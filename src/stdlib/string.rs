@@ -446,58 +446,51 @@ enum FormatArg {
 /// We parse the spec manually to extract flags, width, precision, then
 /// use Rust's formatting to approximate C printf behavior.
 fn format_with_spec(spec: &[u8], arg: &FormatArg) -> String {
-    let spec_str = String::from_utf8_lossy(spec);
-
-    // Parse flags, width, precision from spec like "%-10.3f"
-    let mut flags = String::new();
+    // Parse flags, width, precision from spec like "%-10.3f" using byte indices.
+    let mut flags = Vec::new();
     let mut width: Option<usize> = None;
     let mut precision: Option<usize> = None;
 
-    let chars: Vec<char> = spec_str.chars().collect();
-    let mut idx = 1; // Skip '%'
+    let mut idx = 1; // Skip '%'.
 
     // Parse flags.
-    while idx < chars.len() && "-+ #0".contains(chars[idx]) {
-        flags.push(chars[idx]);
+    while idx < spec.len() && b"-+ #0".contains(&spec[idx]) {
+        flags.push(spec[idx]);
         idx += 1;
     }
 
     // Parse width.
     let width_start = idx;
-    while idx < chars.len() && chars[idx].is_ascii_digit() {
+    while idx < spec.len() && spec[idx].is_ascii_digit() {
         idx += 1;
     }
     if idx > width_start {
-        width = chars[width_start..idx]
-            .iter()
-            .collect::<String>()
-            .parse()
-            .ok();
+        width = std::str::from_utf8(&spec[width_start..idx])
+            .ok()
+            .and_then(|s| s.parse().ok());
     }
 
     // Parse precision.
-    if idx < chars.len() && chars[idx] == '.' {
+    if idx < spec.len() && spec[idx] == b'.' {
         idx += 1;
         let prec_start = idx;
-        while idx < chars.len() && chars[idx].is_ascii_digit() {
+        while idx < spec.len() && spec[idx].is_ascii_digit() {
             idx += 1;
         }
         precision = if idx > prec_start {
-            chars[prec_start..idx]
-                .iter()
-                .collect::<String>()
-                .parse()
+            std::str::from_utf8(&spec[prec_start..idx])
                 .ok()
+                .and_then(|s| s.parse().ok())
         } else {
             Some(0)
         };
     }
 
-    let left_align = flags.contains('-');
-    let pad_zero = flags.contains('0') && !left_align;
-    let plus_sign = flags.contains('+');
-    let space_sign = flags.contains(' ');
-    let alt = flags.contains('#');
+    let left_align = flags.contains(&b'-');
+    let pad_zero = flags.contains(&b'0') && !left_align;
+    let plus_sign = flags.contains(&b'+');
+    let space_sign = flags.contains(&b' ');
+    // let _alt = flags.contains(&b'#'); // Not used in current formatting.
     let w = width.unwrap_or(0);
 
     match *arg {
@@ -521,21 +514,33 @@ fn format_with_spec(spec: &[u8], arg: &FormatArg) -> String {
         }
         FormatArg::Oct(n) => {
             let digits = format!("{n:o}");
-            let prefix = if alt && n != 0 { "0" } else { "" };
+            let prefix = if spec[spec.len() - 1] == b'#' && n != 0 {
+                "0"
+            } else {
+                ""
+            };
             pad_number(prefix, &digits, w, left_align, pad_zero)
         }
         FormatArg::Hex(n) => {
             let digits = format!("{n:x}");
-            let prefix = if alt { "0x" } else { "" };
+            let prefix = if spec[spec.len() - 1] == b'#' {
+                "0x"
+            } else {
+                ""
+            };
             pad_number(prefix, &digits, w, left_align, pad_zero)
         }
         FormatArg::HexUpper(n) => {
             let digits = format!("{n:X}");
-            let prefix = if alt { "0X" } else { "" };
+            let prefix = if spec[spec.len() - 1] == b'#' {
+                "0X"
+            } else {
+                ""
+            };
             pad_number(prefix, &digits, w, left_align, pad_zero)
         }
         FormatArg::Float(n) => format_float(
-            n, &chars, w, precision, left_align, pad_zero, plus_sign, space_sign,
+            n, spec, w, precision, left_align, pad_zero, plus_sign, space_sign,
         ),
     }
 }
@@ -591,7 +596,7 @@ fn normalize_exponent_sign(s: &str) -> String {
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 fn format_float(
     n: f64,
-    chars: &[char],
+    spec: &[u8],
     width: usize,
     precision: Option<usize>,
     left_align: bool,
@@ -599,7 +604,7 @@ fn format_float(
     plus_sign: bool,
     space_sign: bool,
 ) -> String {
-    let spec_char = chars[chars.len() - 1];
+    let spec_char = spec[spec.len() - 1] as char;
     let prec = precision.unwrap_or(6);
 
     // Handle NaN and infinity specially to match C printf behavior.
@@ -900,6 +905,10 @@ use crate::platform::{
 /// Uses libc functions for locale-aware classification (matching PUC-Rio).
 #[allow(unsafe_code)]
 fn matchclass(ch: u8, class: u8) -> bool {
+    // Fast path: ASCII-only classes use inline matching.
+    if ch < 128 && class.is_ascii_lowercase() {
+        return matchclass_ascii(ch, class);
+    }
     let c = i32::from(ch);
     let lower_class = class.to_ascii_lowercase();
     // SAFETY: isalpha et al. are standard C functions that accept any int
@@ -925,6 +934,33 @@ fn matchclass(ch: u8, class: u8) -> bool {
     }
 }
 
+/// ASCII-only fast path for common character classes.
+#[inline]
+#[allow(clippy::match_same_arms)]
+fn matchclass_ascii(ch: u8, class: u8) -> bool {
+    // Complement is encoded by an uppercase class letter; the class itself
+    // is normalized to lowercase, but `ch` is matched verbatim so that the
+    // case-sensitive classes (`%l`, `%u`) behave like C `islower`/`isupper`.
+    let complement = class.is_ascii_uppercase();
+    let class_lower = class.to_ascii_lowercase();
+    let result = match (ch, class_lower) {
+        (_, b'z') => ch == 0,
+        (b'a'..=b'z', b'l') => true,
+        (b'A'..=b'Z', b'u') => true,
+        (b'a'..=b'z' | b'A'..=b'Z', b'a') => true,
+        (b'0'..=b'9', b'd') => true,
+        (b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9', b'w') => true,
+        (b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F', b'x') => true,
+        // Control characters: 0x00-0x1F and 0x7F (C `iscntrl`).
+        (b'\x00'..=b'\x1f' | b'\x7f', b'c') => true,
+        (b' ' | b'\t' | b'\n' | b'\r' | b'\x0b' | b'\x0c', b's') => true,
+        // Punctuation: printable, not alnum, not space (C `ispunct`).
+        (b'!'..=b'/' | b':'..=b'@' | b'['..=b'`' | b'{'..=b'~', b'p') => true,
+        (_, _) => false,
+    };
+    if complement { !result } else { result }
+}
+
 impl<'a> MatchState<'a> {
     fn new(src: &'a [u8], pat: &'a [u8]) -> Self {
         Self {
@@ -934,6 +970,14 @@ impl<'a> MatchState<'a> {
             level: 0,
             depth: 0,
         }
+    }
+
+    /// Resets state for reuse (reuses captures buffer).
+    #[inline]
+    fn reset(&mut self) {
+        self.captures.clear();
+        self.level = 0;
+        self.depth = 0;
     }
 
     /// Main pattern matching function. Tries to match pattern starting at
@@ -1430,9 +1474,10 @@ pub fn str_find(state: &mut LuaState) -> LuaResult<u32> {
         let pat_start = usize::from(anchor);
         let pattern = &pat[pat_start..];
 
+        let mut ms = MatchState::new(&s, pattern);
         let mut pos = init;
         loop {
-            let mut ms = MatchState::new(&s, pattern);
+            ms.reset();
             if let Some(end_pos) = ms.match_(pos, 0)? {
                 #[allow(clippy::cast_precision_loss)]
                 {
@@ -1508,9 +1553,10 @@ pub fn str_match(state: &mut LuaState) -> LuaResult<u32> {
     let pat_start = usize::from(anchor);
     let pattern = &pat[pat_start..];
 
+    let mut ms = MatchState::new(&s, pattern);
     let mut pos = init;
     loop {
-        let mut ms = MatchState::new(&s, pattern);
+        ms.reset();
         if let Some(end_pos) = ms.match_(pos, 0)? {
             if ms.captures.is_empty() {
                 // No captures: return the whole match.
@@ -1611,9 +1657,10 @@ fn gmatch_aux(state: &mut LuaState) -> LuaResult<u32> {
     let anchor = !pat.is_empty() && pat[0] == b'^';
     let pat_start = usize::from(anchor);
     let pattern = &pat[pat_start..];
+    let mut ms = MatchState::new(&s, pattern);
 
     while pos <= s.len() {
-        let mut ms = MatchState::new(&s, pattern);
+        ms.reset();
         if let Some(end_pos) = ms.match_(pos, 0)? {
             // Update position upvalue. Ensure we advance at least 1 char
             // for empty matches to avoid infinite loops.
@@ -1665,13 +1712,14 @@ pub fn str_gsub(state: &mut LuaState) -> LuaResult<u32> {
     let anchor = !pat.is_empty() && pat[0] == b'^';
     let pat_start = usize::from(anchor);
     let pattern = &pat[pat_start..];
+    let mut ms = MatchState::new(&s, pattern);
 
     let mut result = Vec::new();
     let mut pos = 0usize;
     let mut count = 0usize;
 
     while count < max_replacements && pos <= s.len() {
-        let mut ms = MatchState::new(&s, pattern);
+        ms.reset();
         let match_result = ms.match_(pos, 0)?;
 
         if let Some(end_pos) = match_result {

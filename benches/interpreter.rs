@@ -389,6 +389,318 @@ fn bench_end_to_end(c: &mut Criterion) {
     group.finish();
 }
 
+// ---------------------------------------------------------------------------
+// String library — pattern matching & formatting
+// ---------------------------------------------------------------------------
+
+fn bench_string_library(c: &mut Criterion) {
+    let mut group = c.benchmark_group("string_library");
+
+    // Pattern matching: find in a string with no match (worst case).
+    group.bench_function("find_no_match_1k", |b| {
+        let mut lua = Lua::new_with(StdLib::BASE | StdLib::STRING).expect("new failed");
+        b.iter(|| {
+            lua.exec(black_box("string.find('aaaaaaaaaaaaaaaaaaaa', 'xyz')"))
+                .ok();
+        });
+    });
+
+    // Pattern matching: find with match.
+    group.bench_function("find_match_1k", |b| {
+        let mut lua = Lua::new_with(StdLib::BASE | StdLib::STRING).expect("new failed");
+        b.iter(|| {
+            lua.exec(black_box("string.find('hello world', 'world')"))
+                .ok();
+        });
+    });
+
+    // Pattern matching: gsub with string replacement.
+    group.bench_function("gsub_string_1k", |b| {
+        let mut lua = Lua::new_with(StdLib::BASE | StdLib::STRING).expect("new failed");
+        b.iter(|| {
+            lua.exec(black_box("string.gsub('hello world foo', '%a+', 'WORD')"))
+                .ok();
+        });
+    });
+
+    // Pattern matching: gsub with function replacement.
+    group.bench_function("gsub_func_1k", |b| {
+        let mut lua = Lua::new_with(StdLib::BASE | StdLib::STRING).expect("new failed");
+        b.iter(|| {
+            lua.exec(black_box(
+                "string.gsub('hello world foo', '%a+', function(w) return string.upper(w) end)",
+            ))
+            .ok();
+        });
+    });
+
+    // Pattern matching: gsub with table replacement.
+    group.bench_function("gsub_table_1k", |b| {
+        let mut lua = Lua::new_with(StdLib::BASE | StdLib::STRING).expect("new failed");
+        b.iter(|| {
+            lua.exec(black_box(
+                "local t = {a='A', b='B', c='C'}; string.gsub('abc abc', '%a', t)",
+            ))
+            .ok();
+        });
+    });
+
+    // Pattern matching: match with captures.
+    group.bench_function("match_captures_1k", |b| {
+        let mut lua = Lua::new_with(StdLib::BASE | StdLib::STRING).expect("new failed");
+        b.iter(|| {
+            lua.exec(black_box("string.match('2024-01-15', '(%d+)-(%d+)-(%d+)')"))
+                .ok();
+        });
+    });
+
+    // Pattern matching: gmatch iteration.
+    group.bench_function("gmatch_iteration_1k", |b| {
+        let mut lua = Lua::new_with(StdLib::BASE | StdLib::STRING).expect("new failed");
+        b.iter(|| {
+            lua.exec(black_box(
+                "local count = 0; for _ in string.gmatch('hello world foo', '%a+') do count = count + 1 end",
+            ))
+            .ok();
+        });
+    });
+
+    // String formatting: basic %d %s.
+    group.bench_function("format_basic_1k", |b| {
+        let mut lua = Lua::new_with(StdLib::BASE | StdLib::STRING).expect("new failed");
+        b.iter(|| {
+            lua.exec(black_box("string.format('%d %s', 42, 'hello')"))
+                .ok();
+        });
+    });
+
+    // String formatting: float %f.
+    group.bench_function("format_float_1k", |b| {
+        let mut lua = Lua::new_with(StdLib::BASE | StdLib::STRING).expect("new failed");
+        b.iter(|| {
+            lua.exec(black_box("string.format('%f', 3.14159)")).ok();
+        });
+    });
+
+    // String formatting: %g (scientific notation decision).
+    group.bench_function("format_g_1k", |b| {
+        let mut lua = Lua::new_with(StdLib::BASE | StdLib::STRING).expect("new failed");
+        b.iter(|| {
+            lua.exec(black_box("string.format('%g', 12345.6789)")).ok();
+        });
+    });
+
+    // String formatting: %q (quoted string).
+    group.bench_function("format_quoted_1k", |b| {
+        let mut lua = Lua::new_with(StdLib::BASE | StdLib::STRING).expect("new failed");
+        b.iter(|| {
+            lua.exec(black_box("string.format('%q', 'hello \"world\"')"))
+                .ok();
+        });
+    });
+
+    // String formatting: %x hex.
+    group.bench_function("format_hex_1k", |b| {
+        let mut lua = Lua::new_with(StdLib::BASE | StdLib::STRING).expect("new failed");
+        b.iter(|| {
+            lua.exec(black_box("string.format('%x', 255)")).ok();
+        });
+    });
+
+    // String formatting: many format calls in a loop.
+    group.bench_function("format_loop_1k", |b| {
+        let mut lua = Lua::new_with(StdLib::BASE | StdLib::STRING).expect("new failed");
+        b.iter(|| {
+            lua.exec(black_box(
+                "for i = 1, 100 do string.format('%d %s', i, 'x') end",
+            ))
+            .ok();
+        });
+    });
+
+    // String interning under load: 10k unique strings.
+    group.bench_function("intern_unique_10k", |b| {
+        let mut lua = Lua::new_empty();
+        b.iter(|| {
+            for i in 0..10_000 {
+                let s = format!("unique_string_{i:05}");
+                black_box(lua.create_string(s.as_bytes()));
+            }
+        });
+    });
+
+    // String interning under load: 10k duplicates (all dedup hits).
+    group.bench_function("intern_dedup_10k", |b| {
+        let mut lua = Lua::new_empty();
+        for i in 0..100 {
+            let s = format!("dedup_{i:03}");
+            lua.create_string(s.as_bytes());
+        }
+        let keys: Vec<String> = (0..100).map(|i| format!("dedup_{i:03}")).collect();
+        b.iter(|| {
+            for _ in 0..100 {
+                for key in &keys {
+                    black_box(lua.create_string(key.as_bytes()));
+                }
+            }
+        });
+    });
+
+    group.finish();
+}
+
+// ---------------------------------------------------------------------------
+// Call path — overhead measurement
+// ---------------------------------------------------------------------------
+
+fn bench_call_overhead(c: &mut Criterion) {
+    let mut group = c.benchmark_group("call_overhead");
+
+    // Regular function call (Lua-to-Lua).
+    group.bench_function("call_regular_1k", |b| {
+        let mut lua = Lua::new_with(StdLib::BASE).expect("new failed");
+        lua.exec(
+            r"
+            local function add(a, b) return a + b end
+            G_add = add
+            ",
+        )
+        .expect("setup failed");
+        b.iter(|| {
+            lua.exec(black_box(
+                "local s = 0; for i = 1, 1000 do s = s + G_add(i, 1) end",
+            ))
+            .ok();
+        });
+    });
+
+    // Tail call: recursive function using tail calls.
+    group.bench_function("call_tail_recursive_1k", |b| {
+        let mut lua = Lua::new_with(StdLib::BASE).expect("new failed");
+        lua.exec(
+            r"
+            local function sum(n, acc)
+                if n <= 0 then return acc end
+                return sum(n - 1, acc + n)
+            end
+            G_sum = sum
+            ",
+        )
+        .expect("setup failed");
+        b.iter(|| {
+            lua.exec(black_box("G_sum(1000, 0)")).ok();
+        });
+    });
+
+    // Metamethod dispatch: __index lookup per access.
+    group.bench_function("meta_index_1k", |b| {
+        let mut lua = Lua::new_with(StdLib::BASE).expect("new failed");
+        lua.exec(
+            r"
+            local mt = { __index = function(t, k) return k * 2 end }
+            G_t = setmetatable({}, mt)
+            ",
+        )
+        .expect("setup failed");
+        b.iter(|| {
+            lua.exec(black_box(
+                "local t = G_t; local s = 0; for i = 1, 1000 do s = s + t[i] end",
+            ))
+            .ok();
+        });
+    });
+
+    // Metamethod dispatch: __call per invocation.
+    group.bench_function("meta_call_1k", |b| {
+        let mut lua = Lua::new_with(StdLib::BASE).expect("new failed");
+        lua.exec(
+            r"
+            local mt = { __call = function(t, x) return x * 3 end }
+            G_t = setmetatable({}, mt)
+            ",
+        )
+        .expect("setup failed");
+        b.iter(|| {
+            lua.exec(black_box(
+                "local t = G_t; local s = 0; for i = 1, 1000 do s = s + t(i) end",
+            ))
+            .ok();
+        });
+    });
+
+    // Arithmetic with metamethod coercion (__add).
+    group.bench_function("meta_add_1k", |b| {
+        let mut lua = Lua::new_with(StdLib::BASE).expect("new failed");
+        lua.exec(
+            r"
+            local mt = { __add = function(a, b) return a + b end }
+            G_a = setmetatable({}, mt)
+            G_b = setmetatable({}, mt)
+            ",
+        )
+        .expect("setup failed");
+        b.iter(|| {
+            lua.exec(black_box(
+                "for i = 1, 1000 do local x = {}; local y = {}; x + y end",
+            ))
+            .ok();
+        });
+    });
+
+    // Comparison with metamethod (__lt).
+    group.bench_function("meta_lt_1k", |b| {
+        let mut lua = Lua::new_with(StdLib::BASE).expect("new failed");
+        lua.exec(
+            r"
+            local mt = { __lt = function(a, b) return a[1] < b[1] end }
+            G_mt = mt
+            ",
+        )
+        .expect("setup failed");
+        b.iter(|| {
+            lua.exec(black_box(
+                "local mt = G_mt; local s = 0; for i = 1, 1000 do local a = setmetatable({i}, mt); local b = setmetatable({i + 1}, mt); if a < b then s = s + 1 end end",
+            ))
+            .ok();
+        });
+    });
+
+    // C function call (from stdlib).
+    group.bench_function("call_c_func_1k", |b| {
+        let mut lua = Lua::new_with(StdLib::BASE | StdLib::STRING).expect("new failed");
+        b.iter(|| {
+            lua.exec(black_box(
+                "local s = ''; for i = 1, 1000 do s = s .. string.char(97) end",
+            ))
+            .ok();
+        });
+    });
+
+    // Nested function calls.
+    group.bench_function("call_nested_5deep_1k", |b| {
+        let mut lua = Lua::new_with(StdLib::BASE).expect("new failed");
+        lua.exec(
+            r"
+            local function f5(x) return x end
+            local function f4(x) return f5(x) end
+            local function f3(x) return f4(x) end
+            local function f2(x) return f3(x) end
+            local function f1(x) return f2(x) end
+            G_f1 = f1
+            ",
+        )
+        .expect("setup failed");
+        b.iter(|| {
+            lua.exec(black_box(
+                "local s = 0; for i = 1, 1000 do s = s + G_f1(i) end",
+            ))
+            .ok();
+        });
+    });
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_state_creation,
@@ -398,5 +710,7 @@ criterion_group!(
     bench_string_interning,
     bench_table_ops,
     bench_end_to_end,
+    bench_string_library,
+    bench_call_overhead,
 );
 criterion_main!(benches);
