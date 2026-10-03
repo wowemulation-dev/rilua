@@ -573,7 +573,7 @@ unsafe extern "C" {
 
 #[cfg(target_os = "windows")]
 #[allow(unsafe_code)]
-    #[cfg_attr(target_env = "msvc", link(name = "ucrt"))]
+#[cfg_attr(target_env = "msvc", link(name = "ucrt"))]
 unsafe extern "C" {
     fn __acrt_iob_func(index: u32) -> *mut LibcFile;
 }
@@ -651,7 +651,7 @@ unsafe extern "C" {
 
 #[cfg(target_os = "windows")]
 #[allow(unsafe_code)]
-    #[cfg_attr(target_env = "msvc", link(name = "ucrt"))]
+#[cfg_attr(target_env = "msvc", link(name = "ucrt"))]
 unsafe extern "C" {
     #[link_name = "_popen"]
     fn popen(command: *const u8, r#type: *const u8) -> *mut LibcFile;
@@ -700,7 +700,7 @@ unsafe extern "C" {
 
 #[cfg(target_os = "windows")]
 #[allow(unsafe_code)]
-    #[cfg_attr(target_env = "msvc", link(name = "ucrt"))]
+#[cfg_attr(target_env = "msvc", link(name = "ucrt"))]
 unsafe extern "C" {
     // Windows reverses parameter order and returns errno_t.
     // On 64-bit MSVC, `localtime_s`/`gmtime_s` are header-level wrappers
