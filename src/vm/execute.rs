@@ -556,6 +556,7 @@ impl LuaState {
             }
             Closure::Rust(rust_cl) => {
                 let func = rust_cl.func;
+                // All Rust functions in rilua are built-in library functions.
 
                 // Ensure minimum stack for Rust functions.
                 self.ensure_stack(self.top + LUA_MINSTACK);
@@ -573,10 +574,30 @@ impl LuaState {
                 if self.hook.hook_mask & MASK_CALL != 0 {
                     self.callhook("call", -1)?;
                 }
-
                 // Execute the Rust function.
-                let n_results = func(self)?;
-
+                let my_ci = self.ci;
+                let n_results = match func(self) {
+                    Ok(n) => n,
+                    // PUC-Rio's library functions raise errors through
+                    // `luaL_error`, which prefixes the position of the
+                    // calling Lua function (`luaL_where(L, 1)`). Do the same
+                    // for errors that originate in a built-in function
+                    // (frame still current, no thrown error object, not a
+                    // VM-style "attempt to ..." error).
+                    Err(LuaError::Runtime(mut e))
+                        if self.ci == my_ci
+                            && self.error_object.is_none()
+                            && !e.message.starts_with("attempt to ")
+                            && !e.message.starts_with("loop in ") =>
+                    {
+                        let where_prefix = get_where(self, 1);
+                        if !where_prefix.is_empty() && !e.message.starts_with(&where_prefix) {
+                            e.message.insert_str(0, &where_prefix);
+                        }
+                        return Err(LuaError::Runtime(e));
+                    }
+                    Err(e) => return Err(e),
+                };
                 // Move results into place.
                 let first_result = self.top - n_results as usize;
                 self.poscall(first_result);
