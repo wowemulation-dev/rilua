@@ -119,13 +119,26 @@ fn resolve_stack_level_raw(
         ci_idx -= 1;
     }
 
-    // PUC-Rio: `if (level == 0 && ci > L->base_ci)` — CI[0] (base_ci) is
-    // never a valid stack level. (rilua special-cased CI[0] to fake the
-    // `[C]: ?` frame of lua.c's `lua_cpcall(pmain)`; with the real C API
-    // that frame exists, so the plain PUC-Rio rule applies.)
-    let _ = stack;
+    // PUC-Rio: `if (level == 0 && ci > L->base_ci)` — CI[0] (base_ci)
+    // is never a valid stack level target.
+    //
+    // However, PUC-Rio's main entry wraps execution in `lua_cpcall(&pmain)`,
+    // which adds a C frame (CI[1]) above base_ci. That C frame shows as
+    // `[C]: ?` at the bottom of tracebacks. rilua doesn't have a `pmain`
+    // wrapper, so CI[0] serves this role when its function slot is Nil
+    // (main thread sentinel). For coroutines, CI[0] holds the real body
+    // function and must be excluded.
     if remaining == 0 && ci_idx > 0 {
         Some(StackLevel::Real(ci_idx))
+    } else if remaining == 0 && ci_idx == 0 {
+        // CI[0] is the base frame. Only return it as a valid level when
+        // it doesn't hold a real function (main thread sentinel).
+        let func_slot = call_stack[0].func;
+        if func_slot < stack.len() && matches!(stack[func_slot], Val::Nil) {
+            Some(StackLevel::Real(0))
+        } else {
+            None
+        }
     } else if remaining < 0 {
         Some(StackLevel::TailCall)
     } else {
