@@ -8,9 +8,9 @@
 ## Overview
 
 PUC-Rio Lua exposes a stack-based C API where values are pushed and
-popped from a virtual stack. This works well in C but is unergonomic
-in Rust -- it lacks type safety, requires manual stack management,
-and does not leverage Rust's trait system. rilua uses traits for type
+popped from a virtual stack. Code in C works well. Code in Rust lacks ergonomics. It lacks type
+safety, requires manual stack management,
+and does not use Rust's trait system. rilua uses traits for type
 conversion, methods for common operations, and the type system for
 safety instead.
 
@@ -115,7 +115,7 @@ impl Lua {
         &mut self, data: T, type_name: &str,
     ) -> LuaResult<AnyUserData> { ... }
 
-    /// Create or retrieve a named metatable for a userdata type.
+    /// Create or get a named metatable for a userdata type.
     pub fn create_userdata_metatable(
         &mut self, type_name: &str,
     ) -> LuaResult<Table> { ... }
@@ -273,10 +273,10 @@ impl Table {
 ```
 
 Note: Table handle methods take `&LuaState` (the internal VM state),
-not `&Lua`. This is because handles are used both from the public API
-and from stdlib internals. Use `lua.state()` / `lua.state_mut()` (which
-are `pub(crate)`) to get the state reference, or use
-`Lua::table_raw_set()` for the public-facing convenience method.
+not `&Lua`. Handles serve both the public API and stdlib internals.
+Use `lua.state()` / `lua.state_mut()` (which are `pub(crate)`) to get
+the state reference, or use `Lua::table_raw_set()` for the public-facing
+convenience method.
 
 ### Function
 
@@ -418,8 +418,8 @@ planned closure-based alternative).
 ## Internal Stack Model
 
 Internally, rilua uses a virtual stack similar to PUC-Rio's C API
-for stdlib function implementation. Understanding this model is
-necessary for implementing stdlib functions and the debug library.
+for stdlib function implementation. You need this model to implement
+stdlib functions and the debug library.
 
 ### Stack Index Addressing
 
@@ -503,7 +503,7 @@ closures.
 ### Reference System
 
 The reference system provides a way to store Lua values in a table
-(typically the registry) and retrieve them later by integer handle.
+(typically the registry) and get them later by integer handle.
 It is a free-list allocator using integer keys:
 
 - `ref(table)` pops a value from the stack, stores it at an integer
@@ -528,7 +528,7 @@ pushing the library name as argument, then calling. The opener:
 The base library uses an empty name and registers directly into the
 global table.
 
-### GC Handle Safety
+### GC Handle Correctness
 
 Values on the Lua stack (between `stack[0]` and `stack[top-1]`) are
 marked as reachable during GC traversal. This is the primary
@@ -543,7 +543,7 @@ mechanism for protecting values from collection.
 
 **GC checks** (`checkGC`) run after operations that allocate GC
 objects. The check occurs before the allocation in the API function,
-which is safe because the new object does not exist yet. After
+This order is correct because the new object does not exist yet. After
 allocation, the object is immediately placed on the stack (making it
 reachable).
 

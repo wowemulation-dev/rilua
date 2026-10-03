@@ -1,11 +1,11 @@
 # Lua Feature Matrix (5.1 -- 5.5)
 
-Cross-version feature reference for the Lua programming language. Each
-feature shows the version in which it was introduced, and when it was
-deprecated or removed.
+Cross-version feature reference for the Lua programming language. The
+table lists the version that adds each feature. It also lists the
+version that deprecates or removes each feature.
 
-rilua targets **Lua 5.1.1** (the version embedded in the World of Warcraft
-game client). Features from later versions are documented for reference.
+rilua targets **Lua 5.1.1**. The World of Warcraft game client uses Lua
+5.1.1. We document features from later versions for reference.
 
 ## Legend
 

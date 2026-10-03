@@ -140,6 +140,38 @@ reduced runtime to ~2.6s (83% total reduction).
 - Iterator-based sweep: eliminates per-access bounds checks
 - 4.9s -> 2.6s (10-run median)
 
+### Phase 5: String Library Hot Path (2026-09-29)
+
+- `format_with_spec`: byte-indexed spec parsing, removing the per-call
+  `String` + `Vec<char>` allocations.
+- `MatchState` reuse: one state per search operation with `reset()`
+  per iteration instead of a fresh capture vector per start position.
+- ASCII fast path for pattern character classes covering all classes
+  (`a c d l p s u w x z`). The fast path matches the raw input byte so
+  the case-sensitive classes `%l`/`%u` keep C `islower`/`isupper`
+  semantics.
+
+Validated by A/B against the unmodified tree on the same machine
+(`git stash` build, 5-run median of the full-suite wall clock) plus
+criterion baselines:
+
+| Benchmark | Before | After | Delta |
+|-----------|-------:|------:|------:|
+| Full suite (`bench-puc-rio.sh`) | 1970 ms | 1891 ms | -4.0% |
+| `format_loop_1k` | 19.72 µs | 18.34 µs | -7.0% |
+| `gsub_string_1k` | 1.84 µs | 1.79 µs | -2.4% |
+| `format_basic_1k` | 1.71 µs | 1.68 µs | -2.0% |
+
+Rejected after measurement (reverted):
+
+- Small-string optimization in `LuaString` (inline storage for
+  ≤15-byte strings): the larger struct regressed call- and table-heavy
+  paths; intern microbenchmark gains did not offset them end to end.
+- Positive metamethod cache: the per-table `flags` negative cache
+  already covers the absent-metamethod case, and the additional
+  per-table state was a net loss on the `call_overhead/meta_*`
+  benchmarks.
+
 ## Profiling
 
 ### Requirements

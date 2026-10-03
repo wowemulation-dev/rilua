@@ -43,16 +43,16 @@ Source Code
  Output / Side Effects
 ```
 
-Unlike PUC-Rio's single-pass compiler that emits bytecode during
-parsing, rilua uses an explicit AST intermediate representation. This
-follows the approach used by Luau (Roblox's Lua 5.1-compatible scripting language).
+PUC-Rio emits bytecode while it parses. rilua uses an explicit AST
+intermediate representation instead. Luau uses this approach. Luau is
+Roblox's Lua 5.1-compatible scripting language.
 
 Benefits of the AST phase:
 
 - Separation between parsing and code generation
-- Each phase is independently testable
+- You can test each phase on its own
 - Future optimizations (constant folding, dead code elimination) can
-  operate on the AST without modifying the parser
+  operate on the AST. You do not need to change the parser.
 - Easier to understand and debug than interleaved parse-and-emit
 
 ## Module Structure

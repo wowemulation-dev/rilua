@@ -56,18 +56,17 @@ isolation. Every implementation chunk includes unit tests.
 
 Oracle comparison tests run the same Lua code in both rilua and
 PUC-Rio Lua 5.1.1, comparing output to verify behavioral equivalence.
-This catches divergences that unit tests and integration tests might
-miss.
+Unit tests and integration tests might not catch these divergences.
 
 #### Reference Binaries
 
 - **lua** (interpreter): `./lua-5.1.1/src/lua`
 - **luac** (compiler/lister): `./lua-5.1.1/src/luac`
 
-Both are built from the official PUC-Rio Lua 5.1.1 tarball. See
+You build both from the official PUC-Rio Lua 5.1.1 tarball. See
 `AGENTS.md` for download, verification, and build instructions.
 
-The `lua` binary path is configured via the `LUA_REFERENCE_BIN`
+Set the `lua` binary path with the `LUA_REFERENCE_BIN`
 environment variable (defaults to `./lua-5.1.1/src/lua`). Tests
 that require the reference binary skip gracefully if it is not
 available.
@@ -213,15 +212,16 @@ runtime environment before running each test:
 #### How rilua Runs These Tests
 
 rilua does **not** run `all.lua` directly. Instead, each test file
-is executed individually using two approaches:
+Run each test file individually with two approaches:
 
-**Important**: Tests must be run from the `lua-5.1-tests/` directory.
-Several tests depend on relative paths: `attrib.lua` creates files
-in `libs/`, `math.lua` and `verybig.lua` require `checktable.lua`
-via `LUA_PATH`, and file tests reference paths relative to the test
+**Important**: Run tests from the `lua-5.1-tests/` directory.
+Several tests depend on relative paths. `attrib.lua` creates files
+in `libs/`. `math.lua` and `verybig.lua` require `checktable.lua`
+via `LUA_PATH`. File tests reference paths relative to the test
 directory. Running from the project root will cause false failures.
 
 **Individual file execution** (primary):
+
 ```bash
 # Run from the test directory (required)
 cd lua-5.1-tests
@@ -240,6 +240,7 @@ done
 ```
 
 **Comparison script** (`scripts/compare.sh`):
+
 ```bash
 # Compare all test files between PUC-Rio and rilua
 scripts/compare.sh ./lua-5.1.1/src/lua ./target/release/rilua
@@ -340,7 +341,7 @@ requirements beyond individual file execution).
 **Compatibility flags**: The PUC-Rio test suite was written with
 default compat options enabled (e.g., `LUA_COMPAT_VARARG` enables
 the `arg` table in vararg functions). WoW's Lua disables some of
-these. Tests that depend on compat options may need conditional
+these. Compat options affect some tests. These tests need conditional
 handling.
 
 ### Layer 5: Behavioral Equivalence Tests
@@ -367,7 +368,7 @@ line of defense before the PUC-Rio test suite.
 
 ### Test-Driven Development
 
-New features are implemented test-first where possible:
+Implement new features test-first where possible:
 
 1. Write a Lua test script that exercises the feature.
 2. Run the test against PUC-Rio Lua 5.1.1 to verify expected
@@ -377,8 +378,7 @@ New features are implemented test-first where possible:
 5. Run the oracle comparison to verify matching output.
 6. Run the full test suite to check for regressions.
 
-This ensures every feature is validated against the reference
-implementation.
+You validate every feature against the reference implementation.
 
 ### Quality Gate
 
@@ -400,7 +400,7 @@ This ensures:
 
 ### Coverage Tracking
 
-Test coverage is measured by:
+Measure test coverage with these methods:
 
 1. **Feature coverage** -- which Lua 5.1.1 features are implemented
    and tested (tracked in CHANGELOG.md).

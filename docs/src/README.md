@@ -9,8 +9,8 @@ in Rust.
    structure, key decisions
 2. [use-cases.md](use-cases.md) -- WoW ecosystem and general embedding
    use cases
-3. [references.md](references.md) -- Studied implementations and what
-   we learned from each
+3. [references.md](references.md) -- Implementations that we studied,
+   and lessons from each
 
 ## API
 
