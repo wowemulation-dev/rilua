@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.25](https://github.com/wowemulation-dev/rilua/compare/v0.1.24...v0.1.25) - 2026-10-03
+
+### Performance
+
+- *(string)* optimize pattern matching and format spec parsing (~28% faster)
+
 ### Performance
 
 - optimize string library pattern matching — reuse `MatchState` across
