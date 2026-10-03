@@ -254,6 +254,15 @@ impl<'a> Lexer<'a> {
         })
     }
 
+    /// Text of a string token read so far (opening delimiter + contents), as
+    /// PUC-Rio's `txtToken` shows it in "near '...'" messages.
+    fn partial_string(delimiter: u8, buf: &[u8]) -> String {
+        let mut v = Vec::with_capacity(buf.len() + 1);
+        v.push(delimiter);
+        v.extend_from_slice(buf);
+        String::from_utf8_lossy(&v).into_owned()
+    }
+
     fn syntax_error_near(&self, msg: &str, near: &str) -> LuaError {
         LuaError::Syntax(SyntaxError {
             message: format!("{msg} near '{near}'"),
@@ -615,7 +624,10 @@ impl<'a> Lexer<'a> {
                     return Err(self.syntax_error_near("unfinished string", "<eof>"));
                 }
                 Some(b'\n') | Some(b'\r') => {
-                    return Err(self.syntax_error_near("unfinished string", "<string>"));
+                    // PUC-Rio quotes the string read so far (txtToken).
+                    let near = Self::partial_string(delimiter, &buf);
+                    return Err(self.syntax_error_near("unfinished string", &near));
+                }
                 }
                 Some(c) if c == delimiter => {
                     self.advance(); // consume closing delimiter
@@ -684,17 +696,19 @@ impl<'a> Lexer<'a> {
                                 }
                             }
                             if val > 255 {
-                                return Err(
-                                    self.syntax_error_near("escape sequence too large", "<string>")
-                                );
+                                let near = Self::partial_string(delimiter, &buf);
+                                return Err(self.syntax_error_near("escape sequence too large", &near));
+                            }
                             }
                             buf.push(val as u8);
                         }
                         Some(c) => {
-                            return Err(self.syntax_error_near(
-                                &format!("invalid escape sequence '\\{}'", char::from(c)),
-                                "<string>",
-                            ));
+                            // Lua 5.1 (llex.c read_string): any other escaped
+                            // character stands for itself ("\A" is "A",
+                            // "\?" is "?"); only Lua 5.2+ rejects them.
+                            self.advance();
+                            buf.push(c);
+                        }
                         }
                         None => {
                             return Err(self.syntax_error_near("unfinished string", "<eof>"));
