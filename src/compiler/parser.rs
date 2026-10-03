@@ -28,6 +28,9 @@ struct FuncScope {
     /// Names of upvalues already resolved for this function.
     /// Prevents double-counting the same upvalue from multiple references.
     upvalue_names: Vec<String>,
+    /// Whether `...` may be used here (PUC-Rio: `fs->f->is_vararg`).
+    /// The main chunk is always vararg.
+    is_vararg: bool,
 }
 
 /// Parser state.
@@ -81,6 +84,7 @@ impl<'a> Parser<'a> {
                 local_count: 0,
                 local_names: Vec::new(),
                 upvalue_names: Vec::new(),
+                is_vararg: true,
             }],
         })
     }
@@ -827,6 +831,11 @@ impl<'a> Parser<'a> {
                 Ok(Expr::False(span))
             }
             Token::Dots => {
+                // PUC-Rio lparser.c simpleexp: check_condition(ls,
+                // fs->f->is_vararg, "cannot use '...' outside a vararg function")
+                if !self.func_scopes.last().is_none_or(|f| f.is_vararg) {
+                    return Err(self.syntax_error_near("cannot use '...' outside a vararg function"));
+                }
                 self.advance()?;
                 Ok(Expr::VarArg(span))
             }
@@ -1002,6 +1011,7 @@ impl<'a> Parser<'a> {
             local_count: 0,
             local_names: Vec::new(),
             upvalue_names: Vec::new(),
+            is_vararg: has_varargs,
         });
         self.register_locals_named(&params)?;
 
@@ -1713,6 +1723,12 @@ mod tests {
 
     // -- Vararg --
 
+    #[test]
+    fn vararg_outside_vararg_function() {
+        assert!(parse(b"local function f() return ... end", "t").is_err());
+        assert!(parse(b"local function f(...) return ... end", "t").is_ok());
+        assert!(parse(b"return ...", "t").is_ok());
+    }
     #[test]
     fn vararg_expr() {
         let block = parse_ok("return ...");
