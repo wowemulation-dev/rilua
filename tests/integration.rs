@@ -911,6 +911,34 @@ fn string_match_no_capture() {
 }
 
 #[test]
+fn string_class_case_sensitivity() {
+    // %l/%u are case-sensitive classes (regression: ASCII fast path
+    // lowercased the input char, making %l match uppercase too).
+    let (stdout, _, code) = run_rilua("print(string.find('aloALO', '%l*'))");
+    assert_eq!(code, 0);
+    assert_eq!(stdout, "1\t3\n");
+    let (stdout, _, code) = run_rilua("print(string.match('hello WORLD', '%u+'))");
+    assert_eq!(code, 0);
+    assert_eq!(stdout, "WORLD\n");
+    let (stdout, _, code) = run_rilua("print(string.match('aA', '%l%L'))");
+    assert_eq!(code, 0);
+    assert_eq!(stdout, "aA\n");
+}
+
+#[test]
+fn string_class_cntrl_punct() {
+    // %c and %p arms in the ASCII fast path (regression: missing arms
+    // made %c never match; caught by the PUC-Rio literals.lua).
+    let (stdout, _, code) =
+        run_rilua("print(string.find('\\a\\b\\f\\n\\r\\t\\v', '^%c%c%c%c%c%c%c$'))");
+    assert_eq!(code, 0);
+    assert_eq!(stdout, "1\t7\n");
+    let (stdout, _, code) = run_rilua("print(string.find('hi!', '%p'))");
+    assert_eq!(code, 0);
+    assert_eq!(stdout, "3\t3\n");
+}
+
+#[test]
 fn string_gmatch_iteration() {
     let (stdout, _, code) = run_rilua(
         "local t = {} for w in string.gmatch('hello world foo', '%a+') do t[#t+1] = w end print(t[1], t[2], t[3])",
